@@ -30,6 +30,15 @@ import sys
 import zipfile
 from pathlib import Path
 
+# GitHub 的 Windows runner 控制台默认用 **cp1252**，直接 print 中文会抛
+# UnicodeEncodeError 把整个构建搞崩（实测崩在 print 那一行，看日志才发现）。
+# 本机是中文 Windows 所以从来没暴露过。这里统一按 UTF-8 输出。
+for _stream in (sys.stdout, sys.stderr):
+    try:
+        _stream.reconfigure(encoding="utf-8", errors="replace")
+    except Exception:
+        pass      # 老版本 Python 没有 reconfigure，忽略即可
+
 REPO = Path(__file__).resolve().parents[1]
 NAME = "BestdoriHelper"
 
