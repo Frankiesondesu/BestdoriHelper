@@ -27,12 +27,25 @@
 
 ### 从源码跑
 
+**双击即可**（Windows）：
+
+| 脚本 | 作用 |
+| --- | --- |
+| `run-web.bat` | 打开**网页版**：起一个本地静态服务并自动开浏览器（只用 Python 标准库） |
+| `run-gui.bat` | 打开**桌面界面** |
+
+命令行：
+
 ```bash
 python -m venv .venv && .venv/Scripts/activate
 pip install -r requirements.txt
 python -m bestdori_helper.gui        # 桌面界面
 python -m bestdori_helper.cli --help # 命令行
+python scripts/serve_web.py          # 网页版（等价 run-web.bat，可加端口参数）
 ```
+
+> 网页版必须通过 http 打开，**不能直接双击 `docs/index.html`** ——
+> 它用了 ES module 和 fetch，`file://` 协议下会被浏览器的同源策略挡掉。
 
 打 Windows 包：`python scripts/build_win.py`（产物在 `dist/`）。
 
