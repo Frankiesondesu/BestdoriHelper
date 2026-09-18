@@ -45,7 +45,7 @@ def main() -> int:
     logs: list[str] = []
 
     with sync_playwright() as pw:
-        browser = pw.chromium.launch(headless=args.headless)
+        browser = pw.chromium.launch(headless=args.headless, args=["--no-proxy-server"])  # 本地回环不走系统代理（代理挂掉时 127.0.0.1 也会连不上）
         if args.device:
             if args.device not in pw.devices:
                 print(f"未知设备 {args.device!r}；可用的有：")

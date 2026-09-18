@@ -92,7 +92,7 @@ def main() -> int:
 
 def _run(port: int) -> int:
     with sync_playwright() as pw:
-        browser = pw.chromium.launch(headless=True)
+        browser = pw.chromium.launch(headless=True, args=["--no-proxy-server"])  # 本地回环不走系统代理（代理挂掉时 127.0.0.1 也会连不上）
         ctx = browser.new_context(viewport={"width": 1400, "height": 950})
         page = ctx.new_page()
 
