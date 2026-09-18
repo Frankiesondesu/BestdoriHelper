@@ -9,7 +9,11 @@ uvicorn[standard]>=0.30
 python-multipart>=0.0.9
 
 # 桌面 GUI（bdh gui / run-gui.bat）
-PySide6>=6.6
+#
+# 上限 <6.12 是刻意的，不是随手写的：PyInstaller 的 PySide6 hook 对新版本支持
+# 滞后，**装到 6.12+ 时打包会失败**（CI 上实测过一次，卡在 PyInstaller 那步）。
+# 本机验证通过的是 6.11.2。要升就先在本机跑一次 build_win.py 确认能打出 exe。
+PySide6>=6.6,<6.12
 
 # 几何校验（SIFT + RANSAC 二次排序）—— **强烈建议装**，它是准确率的关键：
 # 不装时真实截图 top-1 只有 67.9%，装上后 100%

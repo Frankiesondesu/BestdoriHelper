@@ -103,14 +103,20 @@ jobs:
       - name: 打包（onedir + zip）
         run: python scripts/build_win.py
 
+      # Windows runner 的默认 shell 是 pwsh —— 这里必须写 PowerShell 语法。
+      # （第一次写成 cmd 的 `dir /s /b` + PowerShell 的 `2>$null` 混用，
+      #   结果诊断步骤自己也失败了，等于白加。）
       - name: 打包失败时打印诊断
         if: failure()
+        shell: pwsh
         run: |
-          echo "---- Python / 依赖版本 ----"
+          Write-Output "---- Python 版本 ----"
           python -V
+          Write-Output "---- 依赖版本 ----"
           python -c "import PySide6, cv2, numpy, PIL; print('PySide6', PySide6.__version__); print('cv2', cv2.__version__); print('numpy', numpy.__version__); print('PIL', PIL.__version__)"
-          echo "---- dist 目录 ----"
-          dir dist /s /b 2>$null | Select-Object -First 40
+          Write-Output "---- dist 下的内容 ----"
+          Get-ChildItem -Path dist -Recurse -File -ErrorAction SilentlyContinue |
+            Select-Object -First 40 -ExpandProperty FullName
 
       - name: 上传 Windows 包
         uses: actions/upload-artifact@v4
