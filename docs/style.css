@@ -731,3 +731,25 @@ a { color: var(--info); }
   td.thumb { width: 88px; }
   .stat .v { font-size: 19px; }
 }
+
+/* 弹层里的档案文本框 / 行内代码 */
+.lb-body textarea {
+  width: 100%;
+  box-sizing: border-box;
+  font-family: ui-monospace, Consolas, "Courier New", monospace;
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--text-dim);
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px;
+  resize: vertical;
+}
+.lb-body code {
+  background: var(--panel-2);
+  padding: 1px 5px;
+  border-radius: 4px;
+  font-size: 11px;
+}
+.lb-body p.footnote { line-height: 1.65; }

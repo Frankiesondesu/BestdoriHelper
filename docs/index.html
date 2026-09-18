@@ -137,6 +137,18 @@
           <button class="small" id="btnIds" disabled>ID 列表</button>
           <button class="small" id="btnMarkdown" disabled>Markdown</button>
         </div>
+        <!-- 网页版因为 CORS 不能直连 Bestdori，但官网自己有 Import 入口：
+             导出档案 -> 到 bestdori.com/profile/manager 粘贴，即可完成同步 -->
+        <div class="btn-row">
+          <button class="small primary" id="btnProfile" disabled>导出 Bestdori 档案（可粘贴导入）</button>
+        </div>
+        <p class="footnote">
+          网页版受浏览器同源策略限制，没法直接写 Bestdori。但 Bestdori 官网自己
+          有导入入口：点这个按钮 → 复制内容 → 打开
+          <code>bestdori.com/profile/manager</code> → Import → 粘贴即可。
+          <strong>不需要账号密码经过任何第三方。</strong>
+        </p>
+        </div>
       </div>
     </section>
 

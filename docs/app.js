@@ -534,7 +534,7 @@ function renderInventory() {
   ].map(([k, v]) => `<div class="stat"><div class="v">${v}</div><div class="k">${k}</div></div>`).join('');
 
   const has = all.length > 0;
-  for (const id of ['btnCsv', 'btnJson', 'btnIds', 'btnMarkdown']) $(id).disabled = !has;
+  for (const id of ['btnCsv', 'btnJson', 'btnIds', 'btnMarkdown', 'btnProfile']) $(id).disabled = !has;
   $('btnConfirmAll').disabled = nPending === 0;
   $('btnRemovePending').disabled = nPending === 0;
   $('btnClearInv').disabled = S.inv.size === 0;
@@ -634,6 +634,104 @@ function exportJson() {
     };
   });
   download('bestdori-cards.json', JSON.stringify(data, null, 2), 'application/json');
+}
+
+// ===== 导出「Bestdori 官网可导入」的档案 =====
+//
+// 网页版直连不了 Bestdori（实测无任何 CORS 头，OPTIONS 预检直接 404），
+// 但 **Bestdori 官网自己有 Import 入口**（bestdori.com/profile/manager）。
+// 所以走"导出 -> 到官网粘贴"这条路：既不碰 CORS，账号密码也不用经过任何第三方。
+
+/** 官网档案里 server 是数字；我们内部用 jp/cn/... 字符串，这里做映射 */
+const SERVER_INDEX = { jp: 0, en: 1, tw: 2, cn: 3, kr: 4 };
+
+/** 道具槽位。我们没有道具数据，按官网结构给空的即可，否则导入会失败 */
+const ITEM_SLOTS = ['Menu', 'Plaza', 'Everyone', 'Magazine',
+  'PoppinParty', 'Afterglow', 'PastelPalettes', 'Roselia',
+  'HelloHappyWorld', 'Morfonica'];
+
+function buildProfileForImport(serverKey) {
+  return {
+    server: SERVER_INDEX[serverKey] ?? 3,
+    name: 'BestdoriHelper 导出',
+    cards: invList()
+      .filter((x) => x.cardId != null)
+      .map((x) => newCardEntryFor(x)),
+    items: Object.fromEntries(ITEM_SLOTS.map((k) => [k, []])),
+  };
+}
+
+/** 清单条目 -> 官网的卡片条目。没元数据时退化成最小可用条目 */
+function newCardEntryFor(x) {
+  const meta = S.meta?.cards?.[String(x.cardId)];
+  if (!meta) {
+    return { id: x.cardId, level: 1, master: 0, skill: 0, ep: 0,
+      train: x.trained ? 1 : 0, art: x.trained ? 1 : 0, exclude: false };
+  }
+  const levelLimit = Number(meta.ll) || 1;
+  const trainBonus = Number(meta.tl) || 0;
+  const trainable = Number(meta.tr) === 1;
+  const useTrain = Boolean(x.trained) && trainable;
+  return {
+    id: x.cardId,
+    level: useTrain ? levelLimit + trainBonus : levelLimit,
+    master: 5,                                  // 无法自动判断，给满（不影响卡牌归属）
+    skill: 5,
+    ep: useTrain ? 2 : 1,
+    train: useTrain ? 1 : 0,
+    art: useTrain ? 1 : 0,
+    exclude: false,
+  };
+}
+
+async function exportProfileForImport() {
+  if (!S.inv.size) { log('清单是空的，先识别一些截图', 'err'); return; }
+  let serverKey = 'cn';
+
+  const html =
+    `<div class="field"><label for="profileServer">服务器</label>
+       <select id="profileServer">
+         <option value="cn" selected>国服 CN</option>
+         <option value="jp">日服 JP</option>
+         <option value="en">国际服 EN</option>
+         <option value="tw">台服 TW</option>
+         <option value="kr">韩服 KR</option>
+       </select></div>
+     <p class="footnote">
+       ① 点「复制」② 打开 <code>bestdori.com/profile/manager</code>
+       ③ Import → 粘贴 → 确认。<br>
+       等级/技能/剧情数无法从截图判断，填的是满值 —— <strong>只影响算分，不影响卡牌归属</strong>，
+       需要精确的话在官网改一下即可。</p>
+     <div class="field"><label for="profileText">档案内容（只读）</label>
+       <textarea id="profileText" readonly rows="8"></textarea></div>
+     <div class="btn-row">
+       <button class="small primary" id="btnProfileCopy">复制</button>
+       <button class="small" id="btnProfileDownload">下载 .json</button>
+     </div>`;
+
+  openLightbox(html, '导出 Bestdori 档案（可粘贴导入）');
+
+  const ta = $('profileText');
+  const refresh = () => {
+    ta.value = JSON.stringify(buildProfileForImport(serverKey));
+  };
+  refresh();
+  $('profileServer').onchange = (e) => { serverKey = e.target.value; refresh(); };
+
+  $('btnProfileCopy').onclick = async () => {
+    try {
+      await navigator.clipboard.writeText(ta.value);
+      log('档案已复制到剪贴板', 'ok');
+    } catch {
+      // 非 HTTPS 或旧浏览器没有 clipboard API，退回到选中 + execCommand
+      ta.select();
+      document.execCommand('copy');
+      log('档案已复制（回退方式）', 'ok');
+    }
+  };
+  $('btnProfileDownload').onclick = () => {
+    download('bestdori-profile.json', ta.value, 'application/json');
+  };
 }
 
 function exportIds() {
@@ -1259,6 +1357,7 @@ function bind() {
   $('btnJson').onclick = exportJson;
   $('btnIds').onclick = exportIds;
   $('btnMarkdown').onclick = exportMarkdown;
+  $('btnProfile').onclick = exportProfileForImport;
 }
 
 function addFiles(files) {
