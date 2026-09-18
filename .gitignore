@@ -1,0 +1,31 @@
+# 运行期数据（卡图缓存、指纹库、清单）都不入库
+.bdh-test/
+build/
+*.npz
+*.manifest.json
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+dist*/
+# 本机验证用的另一个输出目录（受限环境下不能删旧 dist，只能换目录）
+
+# Capacitor / 安卓壳
+node_modules/
+# android/ 整个是 `npx cap add android` 的生成物（230 MB），不入库 ——
+# CI 里会自己生成（见 .github/workflows/android.yml）。
+# 只忽略子目录的话，git status 会一直挂着未跟踪的 android/，也容易误提交。
+android/
+*.apk
+*.aab
+*.keystore
+
+# 助手的工作记忆 / 开发日志 —— 不是项目源码，不入库（更不该推到公开仓库）
+.workbuddy/
+.workbuddy-ai/

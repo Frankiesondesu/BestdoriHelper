@@ -1,0 +1,24 @@
+# 核心依赖（pHash / dHash 由 numpy 自行实现，不依赖 imagehash/scipy）
+httpx>=0.27            # Bestdori API / 资源下载
+pillow>=10.3           # 图像读写与预处理
+numpy>=1.26            # 特征计算
+
+# Web UI（可选，只有 bdh serve 用得到）
+fastapi>=0.111
+uvicorn[standard]>=0.30
+python-multipart>=0.0.9
+
+# 桌面 GUI（bdh gui / run-gui.bat）
+PySide6>=6.6
+
+# 几何校验（SIFT + RANSAC 二次排序）—— **强烈建议装**，它是准确率的关键：
+# 不装时真实截图 top-1 只有 67.9%，装上后 100%
+opencv-python>=4.8
+
+# 可选：OCR 兜底识别（不装也能跑，只影响文字辅助信号）
+# rapidocr-onnxruntime>=1.3
+
+# 可选：Bestdori 自动导入（浏览器自动化）。装完还要跑一次：
+#   playwright install chromium
+# 不装也能用 —— 导入计划（JSON/CSV/ID 列表）零依赖，自动写入才需要它
+playwright>=1.44

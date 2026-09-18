@@ -1,0 +1,16 @@
+{
+  "appId": "com.bestdorihelper.app",
+  "appName": "BestdoriHelper",
+  "webDir": "docs",
+  "server": {
+    "androidScheme": "https"
+  },
+  "android": {
+    "allowMixedContent": false
+  },
+  "plugins": {
+    "CapacitorHttp": {
+      "enabled": true
+    }
+  }
+}

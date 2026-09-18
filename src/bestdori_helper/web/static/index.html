@@ -1,0 +1,408 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>BestdoriHelper · 卡面识别与卡册同步</title>
+<style>
+  :root{
+    --bg:#0e1016; --panel:#161a22; --panel2:#1c212b; --line:#272d3a;
+    --text:#e6e9f0; --muted:#8b93a7; --accent:#5b8cff; --accent2:#7c5bff;
+    --ok:#3ddc97; --warn:#ffb84d; --err:#ff5c5c;
+    --powerful:#ff4d4d; --cool:#4d9bff; --pure:#4dd98a; --happy:#ffb84d;
+    --radius:12px;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--text);
+    font:14px/1.6 -apple-system,"Segoe UI","Microsoft YaHei",system-ui,sans-serif}
+  a{color:var(--accent)}
+  .wrap{max-width:1280px;margin:0 auto;padding:20px 20px 60px}
+
+  header{display:flex;align-items:center;gap:14px;flex-wrap:wrap;
+    padding:16px 18px;background:linear-gradient(135deg,#161a22,#1a1f2b);
+    border:1px solid var(--line);border-radius:var(--radius);margin-bottom:16px}
+  .logo{width:38px;height:38px;border-radius:10px;flex:0 0 auto;
+    background:linear-gradient(135deg,var(--accent),var(--accent2));
+    display:grid;place-items:center;font-weight:700;font-size:17px;color:#fff}
+  h1{font-size:17px;margin:0;font-weight:650}
+  .sub{font-size:12px;color:var(--muted);margin:0}
+  .spacer{flex:1}
+  .pill{font-size:12px;padding:4px 10px;border-radius:999px;background:var(--panel2);
+    border:1px solid var(--line);color:var(--muted);white-space:nowrap}
+  .pill.on{color:var(--ok);border-color:#235c43;background:#132a20}
+  .pill.off{color:var(--warn);border-color:#5c4a23;background:#2a2313}
+
+  button{font:inherit;cursor:pointer;border-radius:9px;border:1px solid var(--line);
+    background:var(--panel2);color:var(--text);padding:7px 13px;transition:.15s}
+  button:hover:not(:disabled){border-color:#3b4457;background:#232936}
+  button:disabled{opacity:.45;cursor:not-allowed}
+  button.primary{background:linear-gradient(135deg,var(--accent),var(--accent2));
+    border-color:transparent;color:#fff;font-weight:600}
+  button.danger{color:var(--err)}
+  button.sm{padding:4px 9px;font-size:12px}
+
+  .grid2{display:grid;grid-template-columns:1.55fr 1fr;gap:16px;align-items:start}
+  @media(max-width:980px){.grid2{grid-template-columns:1fr}}
+
+  .card{background:var(--panel);border:1px solid var(--line);
+    border-radius:var(--radius);padding:16px;margin-bottom:16px}
+  .card h2{font-size:14px;margin:0 0 12px;font-weight:650;
+    display:flex;align-items:center;gap:8px}
+  .card h2 .tag{font-size:11px;color:var(--muted);font-weight:400}
+
+  #drop{border:1.5px dashed #333c4d;border-radius:var(--radius);padding:30px 16px;
+    text-align:center;color:var(--muted);cursor:pointer;transition:.18s;background:#12151d}
+  #drop:hover,#drop.over{border-color:var(--accent);background:#141a28;color:var(--text)}
+  #drop b{color:var(--text)}
+
+  .row{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:12px}
+  label.f{display:flex;align-items:center;gap:6px;font-size:13px;color:var(--muted)}
+  select,input[type=number],input[type=text]{font:inherit;background:#12151d;color:var(--text);
+    border:1px solid var(--line);border-radius:8px;padding:5px 8px}
+  input[type=number]{width:64px}
+  input[type=checkbox]{accent-color:var(--accent)}
+
+  .bar{height:5px;background:#1e2430;border-radius:3px;overflow:hidden;margin-top:10px}
+  .bar>i{display:block;height:100%;width:35%;border-radius:3px;
+    background:linear-gradient(90deg,var(--accent),var(--accent2));
+    animation:slide 1.1s ease-in-out infinite}
+  @keyframes slide{0%{margin-left:-35%}100%{margin-left:100%}}
+
+  .results{display:grid;grid-template-columns:repeat(auto-fill,minmax(168px,1fr));gap:12px}
+  .item{background:var(--panel2);border:1px solid var(--line);border-radius:10px;
+    overflow:hidden;position:relative}
+  .item .thumb{width:100%;aspect-ratio:4/3;object-fit:cover;display:block;background:#0b0d12}
+  .item .body{padding:8px 9px 10px}
+  .item .nm{font-size:12.5px;font-weight:600;line-height:1.35;
+    display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+  .item .meta{font-size:11px;color:var(--muted);margin-top:3px}
+  .badge{position:absolute;top:7px;left:7px;font-size:10.5px;padding:2px 7px;
+    border-radius:999px;font-weight:600;backdrop-filter:blur(6px)}
+  .b-matched{background:rgba(61,220,151,.9);color:#04231a}
+  .b-ambiguous{background:rgba(255,184,77,.92);color:#2a1c02}
+  .b-unknown{background:rgba(255,92,92,.9);color:#2a0606}
+  .conf{position:absolute;top:7px;right:7px;font-size:10.5px;padding:2px 7px;
+    border-radius:999px;background:rgba(8,10,15,.72);color:#dfe4ee;font-variant-numeric:tabular-nums}
+  .attr{display:inline-block;width:7px;height:7px;border-radius:50%;margin-right:4px}
+  .cands{margin-top:7px;display:none}
+  .cands.open{display:block}
+  .cand{display:flex;align-items:center;gap:6px;font-size:11px;padding:3px 4px;
+    border-radius:6px;cursor:pointer}
+  .cand:hover{background:#2a3140}
+
+  table{width:100%;border-collapse:collapse;font-size:12.5px}
+  th,td{text-align:left;padding:6px 8px;border-bottom:1px solid var(--line)}
+  th{color:var(--muted);font-weight:500;font-size:11.5px}
+  td.num{text-align:right;font-variant-numeric:tabular-nums}
+
+  .stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(74px,1fr));gap:8px;margin-bottom:12px}
+  .stat{background:var(--panel2);border:1px solid var(--line);border-radius:9px;
+    padding:8px 10px;text-align:center}
+  .stat b{display:block;font-size:19px;font-variant-numeric:tabular-nums}
+  .stat span{font-size:11px;color:var(--muted)}
+
+  .msg{font-size:12.5px;color:var(--muted);margin-top:10px;min-height:18px}
+  .msg.err{color:var(--err)} .msg.ok{color:var(--ok)}
+  .empty{color:var(--muted);font-size:13px;text-align:center;padding:22px 8px}
+  code{background:#12151d;border:1px solid var(--line);border-radius:5px;
+    padding:1px 5px;font-size:12px}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <div class="logo">B</div>
+    <div>
+      <h1>BestdoriHelper</h1>
+      <p class="sub">卡面截图批量识别 · 自动生成卡牌清单 · 同步到 Bestdori</p>
+    </div>
+    <div class="spacer"></div>
+    <span class="pill" id="pillServer">—</span>
+    <span class="pill" id="pillIndex">指纹库 —</span>
+    <span class="pill" id="pillInv">清单 —</span>
+    <button onclick="doSync()" id="btnSync">同步卡牌数据</button>
+  </header>
+
+  <div class="grid2">
+    <!-- 左栏 -->
+    <div>
+      <div class="card">
+        <h2>① 导入截图 <span class="tag">支持拖拽多个文件 / 整个文件夹</span></h2>
+        <div id="drop">
+          <b>把游戏截图拖到这里</b><br>
+          或点击选择文件（PNG / JPG / WEBP）
+        </div>
+        <input type="file" id="fileInput" multiple accept="image/*" hidden>
+
+        <div class="row">
+          <label class="f">切分模式
+            <select id="mode">
+              <option value="auto">自动检测网格</option>
+              <option value="grid">指定行列</option>
+              <option value="single">整图一张卡</option>
+            </select>
+          </label>
+          <label class="f" id="rowCols" style="display:none">
+            行 <input type="number" id="rows" value="2" min="1">
+            列 <input type="number" id="cols" value="4" min="1">
+          </label>
+          <label class="f">边框收缩
+            <input type="number" id="inset" value="0" min="0" max="0.3" step="0.01">
+          </label>
+          <label class="f"><input type="checkbox" id="useAttr" checked> 属性提示</label>
+          <label class="f"><input type="checkbox" id="useOcr"> OCR 辅助</label>
+        </div>
+        <div class="row">
+          <button class="primary" onclick="doScan()" id="btnScan" disabled>开始识别</button>
+          <button onclick="doClearResults()" class="sm">清空结果</button>
+        </div>
+        <div class="msg" id="scanMsg"></div>
+      </div>
+
+      <div class="card">
+        <h2>② 识别结果 <span class="tag" id="resTag"></span></h2>
+        <div class="results" id="results"></div>
+        <div class="empty" id="resEmpty">还没有结果。先导入截图再点「开始识别」。</div>
+      </div>
+    </div>
+
+    <!-- 右栏 -->
+    <div>
+      <div class="card">
+        <h2>指纹库</h2>
+        <div class="stats" id="idxStats"></div>
+        <div class="row">
+          <button onclick="doBuildIndex(false)" id="btnBuild">构建 / 增量更新</button>
+          <button onclick="doBuildIndex(true)" class="sm" title="只处理前 200 张，快速试跑">快速试跑(200)</button>
+        </div>
+        <div class="msg" id="idxMsg"></div>
+      </div>
+
+      <div class="card">
+        <h2>③ 卡牌清单</h2>
+        <div class="stats" id="invStats"></div>
+        <div class="row">
+          <button onclick="doExport('markdown')" class="sm">导出 Markdown</button>
+          <button onclick="doExport('csv')" class="sm">CSV</button>
+          <button onclick="doExport('json')" class="sm">JSON</button>
+          <button onclick="doClearInv()" class="sm danger">清空</button>
+        </div>
+        <div id="invTable"></div>
+      </div>
+
+      <div class="card">
+        <h2>④ 同步到 Bestdori</h2>
+        <p class="sub" style="margin:0 0 10px">
+          写入 Bestdori 的 <code>/profile/cards</code>「我的卡牌」。需要先登录 Bestdori。
+        </p>
+        <div class="row">
+          <button onclick="doPlan()">生成导入计划</button>
+          <button onclick="doImport(false)" id="btnImportDry">试运行</button>
+          <button onclick="doImport(true)" class="primary" id="btnImportApply">实际写入</button>
+        </div>
+        <div class="msg" id="impMsg"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const $ = s => document.querySelector(s);
+const API = (p, o) => fetch(p, o).then(async r => {
+  const t = await r.text();
+  let j = null; try { j = JSON.parse(t); } catch(e) {}
+  if (!r.ok) throw new Error((j && (j.detail || j.message)) || t.slice(0,300) || r.statusText);
+  return j;
+});
+
+let STATE = null;
+let PENDING_FILES = [];
+
+function fmtMsg(el, text, cls){ el.textContent = text || ''; el.className = 'msg ' + (cls||''); }
+
+/* ---------- 状态 ---------- */
+async function refresh(){
+  STATE = await API('/api/state');
+  $('#pillServer').textContent = STATE.serverName + ' · ' + STATE.langName;
+  $('#pillIndex').textContent = STATE.index
+    ? `指纹库 ${STATE.index.cards} 张卡 / ${STATE.index.variants} 变体`
+    : '指纹库 未构建';
+  $('#pillIndex').className = 'pill ' + (STATE.index ? 'on' : 'off');
+  $('#pillInv').textContent = `清单 ${STATE.inventoryCount} 张`;
+  $('#pillInv').className = 'pill ' + (STATE.inventoryCount ? 'on' : 'off');
+  $('#btnScan').disabled = !STATE.index;
+
+  const i = STATE.index || {};
+  $('#idxStats').innerHTML = `
+    <div class="stat"><b>${i.cards||0}</b><span>覆盖卡牌</span></div>
+    <div class="stat"><b>${i.variants||0}</b><span>卡面变体</span></div>
+    <div class="stat"><b>${i.trained||0}</b><span>特训后</span></div>
+    <div class="stat"><b>${STATE.catalogCount||0}</b><span>卡池总数</span></div>`;
+
+  if (STATE.job && STATE.job.running) showJob();
+  await loadInventory();
+}
+
+function showJob(){
+  const j = STATE.job;
+  $('#idxMsg').innerHTML = j.message + '<div class="bar"><i></i></div>';
+  setTimeout(pollJob, 1200);
+}
+async function pollJob(){
+  const j = await API('/api/job');
+  STATE.job = j;
+  if (j.running){ $('#idxMsg').innerHTML = j.message + '<div class="bar"><i></i></div>'; setTimeout(pollJob, 1200); }
+  else {
+    fmtMsg($('#idxMsg'), j.message + (j.error ? ' — ' + j.error : ''), j.error ? 'err' : 'ok');
+    await refresh();
+  }
+}
+
+/* ---------- 同步 / 索引 ---------- */
+async function doSync(){
+  $('#btnSync').disabled = true;
+  try { await API('/api/sync', {method:'POST'}); showJob(); }
+  catch(e){ fmtMsg($('#idxMsg'), '同步失败：'+e.message, 'err'); }
+  finally { setTimeout(()=>$('#btnSync').disabled=false, 1500); }
+}
+async function doBuildIndex(quick){
+  $('#btnBuild').disabled = true;
+  const fd = new FormData();
+  fd.append('include_trained', 'true');
+  fd.append('limit', quick ? '200' : '0');
+  try {
+    await API('/api/index/build', {method:'POST', body: fd});
+    fmtMsg($('#idxMsg'), quick ? '正在试跑前 200 张…' : '正在构建（首次需下载卡图，耗时较久）…');
+    showJob();
+  } catch(e){ fmtMsg($('#idxMsg'), '构建失败：'+e.message, 'err'); }
+  finally { $('#btnBuild').disabled = false; }
+}
+
+/* ---------- 上传与识别 ---------- */
+const drop = $('#drop');
+drop.onclick = () => $('#fileInput').click();
+$('#fileInput').onchange = e => addFiles([...e.target.files]);
+['dragenter','dragover'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.add('over'); }));
+['dragleave','drop'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.remove('over'); }));
+drop.addEventListener('drop', e => addFiles([...e.dataTransfer.files]));
+$('#mode').onchange = e => { $('#rowCols').style.display = e.target.value === 'grid' ? 'flex' : 'none'; };
+
+function addFiles(files){
+  const imgs = files.filter(f => /\.(png|jpe?g|webp|bmp)$/i.test(f.name));
+  PENDING_FILES = PENDING_FILES.concat(imgs);
+  fmtMsg($('#scanMsg'), `已选 ${PENDING_FILES.length} 张截图`, '');
+  $('#btnScan').disabled = !STATE?.index;
+}
+
+async function doScan(){
+  if (!PENDING_FILES.length) return;
+  $('#btnScan').disabled = true;
+  fmtMsg($('#scanMsg'), `识别中…（${PENDING_FILES.length} 张）`);
+  const fd = new FormData();
+  PENDING_FILES.forEach(f => fd.append('files', f, f.name));
+  fd.append('mode', $('#mode').value);
+  fd.append('rows', $('#rows').value);
+  fd.append('cols', $('#cols').value);
+  fd.append('inset', $('#inset').value);
+  fd.append('use_ocr', $('#useOcr').checked ? 'true':'false');
+  fd.append('use_attribute_hint', $('#useAttr').checked ? 'true':'false');
+  fd.append('absorb', 'true');
+  try {
+    const r = await API('/api/scan', {method:'POST', body: fd});
+    renderResults(r.results);
+    const a = r.absorbed || {};
+    fmtMsg($('#scanMsg'), `完成：新增 ${a.added||0}，已存在 ${a.skipped||0}，待确认 ${a.pending||0}`, 'ok');
+    PENDING_FILES = [];
+    await refresh();
+  } catch(e){ fmtMsg($('#scanMsg'), '识别失败：'+e.message, 'err'); }
+  finally { $('#btnScan').disabled = false; }
+}
+
+function renderResults(results){
+  const box = $('#results');
+  box.innerHTML = '';
+  let total = 0, matched = 0;
+  results.forEach(res => res.items.forEach(it => {
+    total++; if (it.status === 'matched') matched++;
+    box.appendChild(renderItem(it));
+  }));
+  $('#resEmpty').style.display = total ? 'none' : 'block';
+  $('#resTag').textContent = total ? `${total} 张，直接匹配 ${matched} 张` : '';
+}
+function renderItem(it){
+  const c = it.card || {};
+  const el = document.createElement('div');
+  el.className = 'item';
+  const img = it.cardId ? `/api/card-image/${it.cardId}?trained=${it.trained?1:0}` : '';
+  el.innerHTML = `
+    <span class="badge b-${it.status}">${({matched:'匹配',ambiguous:'待确认',unknown:'未识别'})[it.status]}</span>
+    <span class="conf">${(it.confidence*100).toFixed(0)}%</span>
+    ${img ? `<img class="thumb" src="${img}" loading="lazy" alt="">`
+          : `<div class="thumb" style="display:grid;place-items:center;color:#5a6379">无图</div>`}
+    <div class="body">
+      <div class="nm">${c.title || '（未识别）'}</div>
+      <div class="meta">
+        <span class="attr" style="background:${STATE.attributeColors[c.attribute]||'#666'}"></span>
+        ${c.character||''} · ${c.rarityLabel||''}${it.trained?' · 特训':''}
+      </div>
+      ${it.candidates?.length ? `<button class="sm" style="margin-top:7px;width:100%" onclick="this.nextElementSibling.classList.toggle('open')">候选 ${it.candidates.length}</button>
+      <div class="cands">${it.candidates.map(cd => `
+        <div class="cand" title="卡牌 #${cd.cardId}">#${cd.cardId} <span style="color:var(--muted)">${(cd.score*100).toFixed(0)}%</span></div>`).join('')}</div>` : ''}
+    </div>`;
+  return el;
+}
+function doClearResults(){
+  $('#results').innerHTML=''; $('#resEmpty').style.display='block'; $('#resTag').textContent='';
+}
+
+/* ---------- 清单 ---------- */
+async function loadInventory(){
+  const d = await API('/api/inventory');
+  const s = d.stats || {};
+  $('#invStats').innerHTML = `
+    <div class="stat"><b>${s.total||0}</b><span>卡牌</span></div>
+    <div class="stat"><b>${s.trained||0}</b><span>特训后</span></div>
+    <div class="stat"><b>${s.pendingReview||0}</b><span>待确认</span></div>`;
+  const rows = (d.items||[]).slice(0, 12).map(x => `
+    <tr>
+      <td><span class="attr" style="background:${STATE.attributeColors[x.attribute]||'#666'}"></span>${x.character}</td>
+      <td>${x.title}</td>
+      <td>${x.rarityLabel}</td>
+      <td class="num">${x.confidence ? (x.confidence*100).toFixed(0)+'%' : '—'}</td>
+    </tr>`).join('');
+  $('#invTable').innerHTML = (d.items||[]).length
+    ? `<table><thead><tr><th>角色</th><th>卡名</th><th>星级</th><th>置信</th></tr></thead><tbody>${rows}</tbody></table>`
+      + (d.items.length > 12 ? `<div class="msg">仅显示前 12 条，共 ${d.items.length} 条</div>` : '')
+    : `<div class="empty">清单为空。识别出卡牌后会自动写入。</div>`;
+}
+function doExport(fmt){ window.open('/api/export?fmt='+fmt, '_blank'); }
+async function doClearInv(){
+  if (!confirm('确定清空本地清单？此操作不可撤销。')) return;
+  await API('/api/inventory/clear', {method:'POST'});
+  await refresh();
+}
+
+/* ---------- Bestdori 同步 ---------- */
+async function doPlan(){
+  try {
+    const p = await API('/api/import/plan', {method:'POST', headers:{'Content-Type':'application/json'}, body:'{}'});
+    fmtMsg($('#impMsg'), p.summary, 'ok');
+  } catch(e){ fmtMsg($('#impMsg'), '失败：'+e.message, 'err'); }
+}
+async function doImport(apply){
+  const btn = apply ? $('#btnImportApply') : $('#btnImportDry');
+  btn.disabled = true;
+  fmtMsg($('#impMsg'), apply ? '正在启动浏览器并写入…' : '正在试运行…');
+  try {
+    const r = await API('/api/import/run', {method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({apply})});
+    fmtMsg($('#impMsg'), r.summary, r.ok ? 'ok' : 'err');
+  } catch(e){ fmtMsg($('#impMsg'), '失败：'+e.message, 'err'); }
+  finally { btn.disabled = false; }
+}
+
+refresh().catch(e => fmtMsg($('#idxMsg'), '初始化失败：'+e.message, 'err'));
+</script>
+</body>
+</html>

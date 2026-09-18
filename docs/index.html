@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#14141a">
+<meta name="description" content="从《BanG Dream! 少女乐团派对》的游戏截图里批量识别卡面，生成卡牌清单并导出。纯浏览器运行，无需上传。">
+<title>BestdoriHelper —— 卡面批量识别</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<!-- ===== 顶部应用栏 ===== -->
+<header class="appbar">
+  <div class="appbar-main">
+    <div class="brand">Bestdori<span>Helper</span></div>
+    <div class="status"><span class="dot" id="dot"></span><span id="statusText">初始化…</span></div>
+  </div>
+  <div class="appbar-actions">
+    <button class="icon-btn" id="btnLog" title="运行日志" aria-label="运行日志">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h10"/></svg>
+    </button>
+  </div>
+</header>
+
+<div class="app-body">
+  <main id="main">
+
+    <!-- ===== 识别 ===== -->
+    <section class="view" id="view-import" data-view="import">
+      <div class="card">
+        <div class="dropzone" id="dropzone">
+          <svg class="dz-icon" viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M12 16V4m0 0L8 8m4-4 4 4"/>
+            <path d="M4 15v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3"/>
+          </svg>
+          <div class="dz-title">拖入截图，或点击选择</div>
+          <div class="hint">支持多选 / 整个文件夹 · 图片只在本机处理，<strong>不会上传</strong></div>
+          <input type="file" id="fileInput" accept="image/*" multiple hidden>
+          <input type="file" id="dirInput" webkitdirectory directory multiple hidden>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="field">
+          <label for="mode">切分模式</label>
+          <select id="mode">
+            <option value="auto">自动（推荐）</option>
+            <option value="grid">指定行列</option>
+            <option value="single">整图一张</option>
+          </select>
+        </div>
+        <div class="field-row">
+          <div class="field">
+            <label for="rows">行</label>
+            <input type="number" id="rows" min="1" max="30" value="4" disabled>
+          </div>
+          <div class="field">
+            <label for="cols">列</label>
+            <input type="number" id="cols" min="1" max="30" value="7" disabled>
+          </div>
+        </div>
+        <label class="switch">
+          <input type="checkbox" id="refine" checked>
+          <span class="switch-body">
+            <span class="switch-title">卡框贴合</span>
+            <span class="switch-desc">把格子收缩到真正的卡框上，避免把相邻卡面的边切进来</span>
+          </span>
+        </label>
+      </div>
+
+      <div class="card">
+        <div class="footnote" id="fileSummary">还没有选择截图</div>
+        <div class="progress" id="progress"><div></div></div>
+        <div class="btn-row">
+          <button id="btnRun" class="primary block" disabled>开始识别</button>
+          <button id="btnClear" class="block" disabled>清空</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 结果 ===== -->
+    <section class="view" id="view-result" data-view="result">
+      <div class="split">
+        <section class="pane">
+          <header title="滚轮或双指可放大，放大后拖动查看">原图
+            <span class="count" id="shotLabel">未选择</span>
+            <span class="count zoom-badge" id="zoomBadge" hidden></span>
+          </header>
+          <div class="body" id="previewBody">
+            <div class="empty">
+              <svg class="empty-icon" viewBox="0 0 24 24" aria-hidden="true">
+                <rect x="3" y="4" width="18" height="16" rx="2"/>
+                <path d="m3 16 5-5 4 4 3-3 6 6"/>
+              </svg>
+              识别后在这里显示原图与切分框<br>点框可选中对应行
+            </div>
+          </div>
+        </section>
+        <section class="pane">
+          <header>识别结果 <span class="count" id="resultCount"></span></header>
+          <div class="body" id="resultBody">
+            <div class="empty">还没有结果</div>
+          </div>
+        </section>
+      </div>
+    </section>
+
+    <!-- ===== 清单 ===== -->
+    <section class="view" id="view-inventory" data-view="inventory">
+      <div class="summary" id="summary"></div>
+      <div class="card">
+        <div class="search-row">
+          <input type="search" id="invSearch" placeholder="搜索卡名 / 角色 / 卡号…">
+          <select id="invFilter">
+            <option value="all">全部</option>
+            <option value="confident">已确认</option>
+            <option value="pending">待确认</option>
+            <option value="trained">特训后</option>
+            <option value="r45">4★5★</option>
+          </select>
+        </div>
+        <div class="btn-row">
+          <button class="small" id="btnConfirmAll" disabled>全部确认</button>
+          <button class="small" id="btnRemovePending" disabled>移除待确认</button>
+          <!-- 桌面版有「清空清单」，网页/手机端一直缺 —— 用户反馈手机端清不掉卡 -->
+          <button class="small danger" id="btnClearInv" disabled>清空清单</button>
+          <span class="footnote" id="invHint"></span>
+        </div>
+      </div>
+      <div id="invBody"><div class="empty">识别出卡牌后，可在这里确认并导出</div></div>
+      <div class="card">
+        <div class="card-label">导出 <span class="footnote" id="invCount"></span></div>
+        <div class="btn-row">
+          <button class="small" id="btnCsv" disabled>CSV</button>
+          <button class="small" id="btnJson" disabled>JSON</button>
+          <button class="small" id="btnIds" disabled>ID 列表</button>
+          <button class="small" id="btnMarkdown" disabled>Markdown</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 同步 ===== -->
+    <section class="view" id="view-sync" data-view="sync">
+      <div class="card" id="syncCard" hidden>
+        <div class="card-label">同步到 Bestdori</div>
+        <p class="card-desc">
+          把清单增量合并进你的「我的卡牌」。远端没有的会新增，远端未特训而本地特训后的会升级。
+        </p>
+        <div class="sync-state-row"><span class="pill" id="syncState">未登录</span></div>
+
+        <div id="syncLogin">
+          <div class="field"><label for="bdUser">用户名 / 邮箱</label>
+            <input type="text" id="bdUser" autocomplete="username" placeholder="Bestdori 账号"></div>
+          <div class="field"><label for="bdPass">密码</label>
+            <input type="password" id="bdPass" autocomplete="current-password" placeholder="密码"></div>
+          <button id="btnLogin" class="primary block">登录</button>
+          <p class="footnote">凭据只发往 bestdori.com，本机只保存会话 cookie。</p>
+        </div>
+
+        <div id="syncPanel" hidden>
+          <div class="field"><label for="profileSel">云端档案</label>
+            <select id="profileSel"></select></div>
+          <div class="btn-row">
+            <button class="small block" id="btnPlan">生成导入计划</button>
+            <button class="small primary block" id="btnImport">开始导入</button>
+          </div>
+          <!-- 退出登录也放进 .btn-row：单摆一个 block 按钮会和上面那行贴在一起，
+               看起来像控件重叠（手机上尤其明显） -->
+          <div class="btn-row">
+            <button class="small block ghost" id="btnPeek">查看云端档案内容</button>
+            <button class="small block ghost" id="btnLogout">退出登录</button>
+          </div>
+          <div id="syncResult" class="footnote"></div>
+          <!-- 预览放在状态文字之后：网格是可滚动区，放前面会把上面那句统计
+               挤出可视范围（实测手机上「云端共 N 份档案」直接看不见） -->
+          <div id="peekBox" hidden>
+            <div class="peek-head">
+              <span class="peek-stat" id="peekStat"></span>
+              <button class="peek-close" id="btnPeekClose">收起</button>
+            </div>
+            <div class="peek-grid" id="peekGrid"></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="notice" id="syncUnavailable" hidden>
+        <strong>网页版用不了同步功能</strong>
+        <p>Bestdori 的接口不返回 CORS 头，浏览器会拦掉所有请求（实测连公开的卡牌接口都被拦）。
+           同步只在安卓 App 里可用 —— 那里走原生 HTTP，没有同源策略。</p>
+        <p>网页版请用「清单」页的导出功能，把清单拿到桌面版导入。</p>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- ===== 通用弹层：看大图 / 卡牌详情 =====
+       position: fixed 全屏，[hidden] 由全局规则强制 display:none 控制显隐 -->
+  <div class="lightbox" id="lightbox" hidden role="dialog" aria-modal="true">
+    <header class="lb-head">
+      <span id="lbTitle"></span>
+      <span class="lb-actions">
+        <button id="lbZoomOut" title="缩小" hidden>−</button>
+        <button id="lbZoomIn" title="放大" hidden>＋</button>
+        <button id="lbFit" title="适应屏幕" hidden>适应</button>
+        <button id="lbClose" title="关闭">✕</button>
+      </span>
+    </header>
+    <div class="lb-hint" id="lbHint" hidden></div>
+    <div class="lb-body" id="lbBody"></div>
+  </div>
+
+  <!-- ===== 导航：窄屏是底部栏，宽屏是侧边栏 =====
+       放在 .app-body 里，用 flex-direction + order 切换两种形态，
+       避免维护两份导航 DOM。 -->
+  <nav class="appnav" id="appnav" aria-label="主导航">
+    <button class="navitem active" data-tab="import">
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M12 16V4m0 0L8 8m4-4 4 4"/>
+        <path d="M4 15v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3"/>
+      </svg>
+      <span>识别</span>
+      <em class="badge" id="badgeImport" hidden></em>
+    </button>
+    <button class="navitem" data-tab="result">
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <path d="m9 12 2.5 2.5L16 9.5"/>
+        <rect x="3" y="4" width="18" height="16" rx="2"/>
+      </svg>
+      <span>结果</span>
+      <em class="badge" id="badgeResult" hidden></em>
+    </button>
+    <button class="navitem" data-tab="inventory">
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <rect x="3" y="3" width="7.5" height="7.5" rx="1.5"/>
+        <rect x="13.5" y="3" width="7.5" height="7.5" rx="1.5"/>
+        <rect x="3" y="13.5" width="7.5" height="7.5" rx="1.5"/>
+        <rect x="13.5" y="13.5" width="7.5" height="7.5" rx="1.5"/>
+      </svg>
+      <span>清单</span>
+      <em class="badge" id="badgeInventory" hidden></em>
+    </button>
+    <button class="navitem" data-tab="sync">
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M12 12v9"/>
+        <path d="m8 16 4-4 4 4"/>
+        <path d="M20.5 16.5A4.5 4.5 0 0 0 18 8.2h-1.4A7 7 0 1 0 5 14.2"/>
+      </svg>
+      <span>同步</span>
+      <em class="badge" id="badgeSync" hidden></em>
+    </button>
+  </nav>
+</div>
+
+<!-- ===== 运行日志（底部抽屉） ===== -->
+<div class="sheet-scrim" id="logScrim" hidden></div>
+<div class="logsheet" id="logsheet" hidden>
+  <header>
+    <strong>运行日志</strong>
+    <button class="icon-btn" id="btnLogClose" aria-label="关闭">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
+    </button>
+  </header>
+  <div class="log" id="log"></div>
+</div>
+
+<script type="module" src="app.js"></script>
+</body>
+</html>

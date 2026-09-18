@@ -1,0 +1,733 @@
+/* BestdoriHelper —— 移动端 App 风格布局
+ *
+ * 结构参考 Material 3 / Android 官方《布局和导航模式》：
+ *   - 顶部应用栏（appbar）放标题 + 状态 + 次要操作
+ *   - 主导航 3~5 个目标；**窄屏用底部导航栏，宽屏转侧边导航栏**
+ *     （官方明确要求大屏不要继续用底部栏）
+ *   - 内容按 tab 分页，一次只显示一页
+ *   - 处理 edge-to-edge 安全区（刘海屏 / 手势条）
+ *
+ * 导航只有一个 <nav>，靠 flex-direction + order 在两种形态间切换，
+ * 不维护两份 DOM。
+ */
+
+:root {
+  --bg: #14141a;
+  --panel: #1c1c23;
+  --panel-2: #22222b;
+  --panel-3: #26262f;
+  --border: #2e2e3a;
+  --border-2: #3a3a48;
+  --text: #e9e9f0;
+  --text-dim: #9a9aad;
+  --text-faint: #6b6b7d;
+  --accent: #ff6b9d;
+  --ok: #4ade80;
+  --warn: #fbbf24;
+  --err: #f87171;
+  --info: #60a5fa;
+  --radius: 12px;
+
+  /* 安全区：刘海屏顶部、手势条底部 */
+  --sat: env(safe-area-inset-top, 0px);
+  --sab: env(safe-area-inset-bottom, 0px);
+  --sal: env(safe-area-inset-left, 0px);
+  --sar: env(safe-area-inset-right, 0px);
+
+  --appbar-h: 56px;
+  --bottomnav-h: 64px;
+  --rail-w: 88px;
+}
+
+* { box-sizing: border-box; }
+
+/* hidden 属性必须压得住组件自己的 display ——
+   UA 的 [hidden]{display:none} 优先级太低，会被 .logsheet{display:flex} 之类覆盖，
+   结果"藏起来"的抽屉照样显示。 */
+[hidden] { display: none !important; }
+
+html { -webkit-text-size-adjust: 100%; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  background: var(--bg);
+  color: var(--text);
+  font-family: "Microsoft YaHei", "PingFang SC", "Hiragino Sans GB", system-ui, -apple-system, sans-serif;
+  font-size: 14px;
+  line-height: 1.55;
+  overscroll-behavior-y: none;
+}
+
+/* ===== App 外壳：整体不滚动，只有内容区滚 ===== */
+body {
+  display: flex;
+  flex-direction: column;
+  height: 100dvh;
+  overflow: hidden;
+}
+
+/* ---- 顶部应用栏 ---- */
+.appbar {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: calc(var(--appbar-h) + var(--sat));
+  padding: var(--sat) calc(14px + var(--sar)) 0 calc(14px + var(--sal));
+  background: color-mix(in srgb, var(--panel) 92%, transparent);
+  backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--border);
+  z-index: 20;
+}
+.appbar-main { display: flex; flex-direction: column; justify-content: center; min-width: 0; flex: 1; }
+.brand { font-size: 15px; font-weight: 600; letter-spacing: 0.2px; line-height: 1.2; }
+.brand span { color: var(--accent); }
+.appbar .status { font-size: 11.5px; color: var(--text-dim); display: flex; align-items: center; gap: 5px; }
+.appbar-actions { display: flex; gap: 4px; flex: none; }
+
+.dot { width: 7px; height: 7px; border-radius: 50%; background: var(--text-faint); flex: none; }
+.dot.ready { background: var(--ok); }
+.dot.busy { background: var(--warn); animation: pulse 1s infinite; }
+.dot.err { background: var(--err); }
+@keyframes pulse { 50% { opacity: 0.3; } }
+
+.icon-btn {
+  display: grid; place-items: center;
+  width: 40px; height: 40px; padding: 0;
+  border: none; border-radius: 50%;
+  background: transparent; color: var(--text-dim);
+  cursor: pointer;
+}
+.icon-btn:hover { background: var(--panel-2); color: var(--text); }
+.icon-btn svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+
+/* ---- 主体 ---- */
+.app-body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;   /* 窄屏：内容在上，导航在下 */
+  min-height: 0;
+}
+
+main {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  padding: 12px calc(12px + var(--sar)) 16px calc(12px + var(--sal));
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+/* ---- 分页 ---- */
+.view { display: none; flex-direction: column; gap: 12px; }
+.view.active { display: flex; }
+
+/* ===== 导航 ===== */
+.appnav {
+  flex: none;
+  display: flex;
+  flex-direction: row;
+  height: calc(var(--bottomnav-h) + var(--sab));
+  padding-bottom: var(--sab);
+  background: color-mix(in srgb, var(--panel) 96%, transparent);
+  backdrop-filter: blur(12px);
+  border-top: 1px solid var(--border);
+  z-index: 20;
+}
+
+.navitem {
+  position: relative;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  padding: 6px 2px;
+  border: none;
+  background: transparent;
+  color: var(--text-faint);
+  font-family: inherit;
+  font-size: 11px;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: color 0.15s;
+}
+.navitem svg {
+  width: 24px; height: 24px;
+  fill: none; stroke: currentColor;
+  stroke-width: 1.9; stroke-linecap: round; stroke-linejoin: round;
+  transition: transform 0.15s;
+}
+/* 选中态：按 Material 3 的做法，图标外面套一个胶囊形指示器
+   （原先只有文字变色，在底部导航里不够醒目，也不像原生 App） */
+.navitem::before {
+  content: "";
+  position: absolute;
+  top: 5px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 56px;
+  height: 30px;
+  border-radius: 15px;
+  background: transparent;
+  transition: background 0.18s ease;
+}
+.navitem.active::before {
+  background: color-mix(in srgb, var(--accent) 18%, transparent);
+}
+.navitem.active { color: var(--accent); }
+.navitem.active svg { transform: translateY(-1px); }
+.navitem svg { position: relative; }
+.navitem:active svg { transform: scale(0.92); }
+
+/* 角标 */
+.badge {
+  position: absolute;
+  top: 4px;
+  left: 50%;
+  margin-left: 6px;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  border-radius: 8px;
+  background: var(--accent);
+  color: #1a0a12;
+  font-size: 10px;
+  font-style: normal;
+  font-weight: 700;
+  line-height: 16px;
+  text-align: center;
+}
+.badge.muted { background: var(--border-2); color: var(--text-dim); }
+
+/* ===== 卡片 / 表单 ===== */
+.card {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 14px;
+}
+.card-label { font-size: 13px; font-weight: 600; color: var(--text); margin-bottom: 8px; }
+.card-desc { margin: 0 0 10px; font-size: 12.5px; color: var(--text-dim); line-height: 1.6; }
+
+.field { display: flex; flex-direction: column; gap: 5px; margin-bottom: 12px; }
+.field label { font-size: 12px; color: var(--text-dim); }
+.field-row { display: flex; gap: 10px; }
+.field-row .field { flex: 1; }
+
+select, input[type="text"], input[type="password"], input[type="number"], input[type="search"] {
+  font-family: inherit;
+  font-size: 15px;          /* ≥16px 才不会被 iOS 自动放大，安卓也更好点 */
+  width: 100%;
+  min-height: 44px;
+  padding: 9px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--border-2);
+  background: var(--panel-2);
+  color: var(--text);
+  appearance: none;
+}
+select {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%239a9aad' stroke-width='2' stroke-linecap='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 10px center;
+  background-size: 18px;
+  padding-right: 34px;
+}
+select:focus, input:focus { outline: none; border-color: var(--accent); }
+input::placeholder { color: var(--text-faint); }
+input:disabled, select:disabled { opacity: 0.45; }
+
+/* 开关行 */
+.switch {
+  display: flex;
+  align-items: flex-start;
+  gap: 11px;
+  padding: 10px 0 2px;
+  cursor: pointer;
+}
+.switch input { position: absolute; opacity: 0; pointer-events: none; }
+.switch-body { display: flex; flex-direction: column; gap: 2px; }
+.switch-title { font-size: 13.5px; }
+.switch-desc { font-size: 11.5px; color: var(--text-faint); line-height: 1.5; }
+.switch::before {
+  content: "";
+  flex: none;
+  width: 42px; height: 24px;
+  margin-top: 1px;
+  border-radius: 12px;
+  background: var(--border-2);
+  background-image: radial-gradient(circle at 12px 12px, #fff 8px, transparent 8.5px);
+  background-repeat: no-repeat;
+  transition: background-color 0.18s, background-position 0.18s;
+}
+.switch:has(input:checked)::before {
+  background-color: var(--accent);
+  background-position: 18px 0;
+}
+
+/* 按钮 */
+button {
+  font-family: inherit;
+  font-size: 14px;
+  padding: 10px 16px;
+  min-height: 44px;
+  border-radius: 10px;
+  border: 1px solid var(--border-2);
+  background: var(--panel-2);
+  color: var(--text);
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, opacity 0.15s;
+  -webkit-tap-highlight-color: transparent;
+}
+button:hover:not(:disabled) { background: var(--panel-3); border-color: #4a4a5c; }
+button:active:not(:disabled) { transform: scale(0.985); }
+button:disabled { opacity: 0.4; cursor: not-allowed; }
+button.primary { background: var(--accent); border-color: var(--accent); color: #1a0a12; font-weight: 600; }
+button.primary:hover:not(:disabled) { background: #ff85ae; border-color: #ff85ae; }
+button.ghost { background: transparent; color: var(--text-dim); }
+/* 破坏性操作（清空、删除）：描边与文字用危险色，不填满，避免误点 */
+button.danger { color: var(--err); border-color: color-mix(in srgb, var(--err) 45%, transparent); }
+button.danger:hover:enabled { background: color-mix(in srgb, var(--err) 14%, transparent); }
+button.small { font-size: 13px; padding: 8px 13px; min-height: 40px; }
+button.block { width: 100%; }
+
+.btn-row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+.btn-row .block { flex: 1 1 0; min-width: 0; }
+
+/* 云端档案预览（只读查看云端已登记了哪些卡） */.peek-head {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 8px; margin: 10px 0 6px;
+}
+.peek-stat { font-size: 12px; color: var(--text-dim); }
+button.peek-close { font-size: 12px; padding: 4px 10px; min-height: 0; }
+.peek-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(72px, 1fr));
+  gap: 8px;
+  max-height: 46vh;
+  overflow-y: auto;
+  padding-right: 2px;
+}
+.peek-cell { margin: 0; display: flex; flex-direction: column; gap: 3px; }
+.peek-cell img {
+  width: 100%; aspect-ratio: 1; object-fit: cover;
+  border-radius: 8px; background: var(--panel-2);
+}
+.peek-cell figcaption {
+  font-size: 10px; color: var(--text-faint); text-align: center;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+
+/* 搜索行 */
+.search-row { display: flex; gap: 8px; }
+.search-row input { flex: 2 1 0; min-width: 0; }
+.search-row select { flex: 1 1 0; min-width: 0; }
+
+/* 拖放区 */
+.dropzone {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 28px 16px;
+  border: 2px dashed var(--border-2);
+  border-radius: var(--radius);
+  color: var(--text-dim);
+  text-align: center;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+}
+.dropzone:hover, .dropzone.over { border-color: var(--accent); background: rgba(255, 107, 157, 0.07); color: var(--text); }
+.dz-icon { width: 34px; height: 34px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.dz-title { font-size: 14.5px; font-weight: 600; color: var(--text); }
+.dropzone .hint { font-size: 11.5px; color: var(--text-faint); }
+.dropzone .hint strong { color: var(--text-dim); }
+
+/* 进度 */
+.progress { height: 4px; margin: 10px 0 0; border-radius: 2px; background: var(--panel-2); overflow: hidden; display: none; }
+.progress.on { display: block; }
+.progress > div { height: 100%; width: 0; background: var(--accent); transition: width 0.2s; }
+
+/* ===== 结果页 ===== */
+.split { display: flex; flex-direction: column; gap: 12px; }
+
+.pane {
+  display: flex;
+  flex-direction: column;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+.pane > header {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-dim);
+}
+.pane > header .count { font-weight: 400; font-size: 11.5px; color: var(--text-faint); }
+
+/* 面板标题栏右侧的小按钮（如原图的「放大」）—— header 已是 flex，auto 靠右 */
+button.pane-btn {
+  margin-left: auto;
+  min-height: 30px;
+  padding: 3px 10px;
+  font-size: 12px;
+  border-radius: 7px;
+}
+.pane > .body { flex: 1; min-height: 220px; overflow: auto; padding: 12px; }
+
+/* ===== 大图查看 / 卡牌详情弹层 ===== */
+.lightbox {
+  position: fixed; inset: 0; z-index: 60;
+  display: flex; flex-direction: column;
+  background: rgba(8, 8, 12, 0.95);
+  backdrop-filter: blur(4px);
+}
+.lb-head {
+  flex: none; display: flex; align-items: center; gap: 8px;
+  padding: calc(var(--sat) + 10px) 12px 10px;
+  border-bottom: 1px solid var(--border);
+  font-size: 13px; color: var(--text-dim);
+}
+.lb-head #lbTitle {
+  flex: 1; min-width: 0;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.lb-actions { flex: none; display: flex; gap: 6px; }
+/* 提示条：告诉用户"点图片可以看对比"，否则这个交互没人会发现 */
+.lb-hint {
+  flex: none;
+  padding: 7px 12px;
+  font-size: 12px;
+  color: var(--text-dim);
+  text-align: center;
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  border-bottom: 1px solid var(--border);
+}
+.lb-actions button {
+  min-height: 34px; padding: 4px 12px; font-size: 14px; border-radius: 8px;
+}
+.lb-body {
+  flex: 1; overflow: auto; padding: 12px;
+  -webkit-overflow-scrolling: touch;
+}
+/* 放大时不能被 max-width:100% 压回去，否则拖动看不到细节 */
+.lb-body > img { display: block; margin: 0 auto; border-radius: 8px; max-width: none; }
+
+/* 卡牌详情内容 */
+.detail-imgs { display: flex; gap: 10px; justify-content: center; align-items: flex-start; }
+.detail-imgs figure { margin: 0; flex: 0 1 46%; min-width: 0; }
+.detail-imgs img { width: 100%; border-radius: 10px; background: var(--panel-2); }
+.detail-imgs figcaption {
+  font-size: 11px; color: var(--text-faint); text-align: center; margin-top: 4px;
+}
+.detail-name { font-size: 17px; margin: 14px 0 4px; }
+.detail-sub { font-size: 13px; color: var(--text-dim); margin: 0 0 10px; }
+.detail-tags { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; }
+.detail-link { display: block; text-align: center; text-decoration: none; margin-top: 8px; }
+
+#preview {
+  position: relative;
+  line-height: 0;
+  transform-origin: center center;
+  transition: transform 0.06s linear;
+  will-change: transform;
+}
+/* 缩放倍率角标（>1× 时才显示） */
+.zoom-badge {
+  margin-left: 6px;
+  color: var(--accent);
+  font-variant-numeric: tabular-nums;
+}
+#preview img { width: 100%; height: auto; display: block; border-radius: 8px; }
+#overlay { position: absolute; inset: 0; pointer-events: none; }
+#overlay .cellbox {
+  position: absolute;
+  border: 2px solid var(--ok);
+  border-radius: 3px;
+  pointer-events: auto;
+  cursor: pointer;
+  transition: background 0.12s;
+}
+#overlay .cellbox.ambiguous { border-color: var(--warn); }
+#overlay .cellbox.unknown { border-color: var(--text-faint); }
+#overlay .cellbox:hover { background: rgba(255, 255, 255, 0.12); }
+#overlay .cellbox.sel { border-color: var(--accent); border-width: 3px; box-shadow: 0 0 0 2px rgba(255, 107, 157, 0.35); }
+
+/* ===== 表格 ===== */
+table { width: 100%; border-collapse: collapse; }
+th {
+  text-align: left;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-faint);
+  letter-spacing: 0.3px;
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--border);
+  position: sticky;
+  top: -12px;
+  background: var(--panel);
+  z-index: 1;
+  white-space: nowrap;
+}
+td { padding: 7px 8px; border-bottom: 1px solid rgba(46, 46, 58, 0.5); vertical-align: middle; font-size: 13px; }
+tr.row, tr.invrow { cursor: pointer; }
+tr.row:hover td, tr.invrow:hover td { background: rgba(255, 255, 255, 0.04); }
+tr.row.sel td { background: rgba(255, 107, 157, 0.1); }
+
+td.thumb { width: 1%; white-space: nowrap; }
+td.thumb img { width: 42px; height: 42px; border-radius: 6px; object-fit: cover; background: var(--panel-2); display: block; }
+
+/* 对照视图：左 = 截图里那一格，右 = 匹配到的 Bestdori 卡图 */
+.pair { display: flex; gap: 5px; align-items: center; }
+.pair img { width: 46px; height: 46px; border-radius: 6px; object-fit: cover; background: var(--panel-2); display: block; }
+.pair .cellimg { border: 2px solid var(--border-2); }
+.pair .matchimg { border: 2px solid rgba(74, 222, 128, 0.45); }
+.pair .noimg { width: 46px; height: 46px; border-radius: 6px; background: var(--panel-2); border: 2px dashed var(--border-2); }
+
+.mono { font-variant-numeric: tabular-nums; }
+.score { font-weight: 600; }
+.score.ok { color: var(--ok); }
+.score.warn { color: var(--warn); }
+.score.err { color: var(--err); }
+.name { color: var(--text); }
+.name .ch { color: var(--text-dim); font-size: 12px; }
+
+.pill {
+  display: inline-block;
+  padding: 2px 7px;
+  border-radius: 6px;
+  font-size: 11px;
+  background: var(--panel-2);
+  border: 1px solid var(--border-2);
+  color: var(--text-dim);
+  white-space: nowrap;
+}
+.pill.ok { color: var(--ok); border-color: rgba(74, 222, 128, 0.4); }
+.pill.warn { color: var(--warn); border-color: rgba(251, 191, 36, 0.4); }
+.pill.err { color: var(--err); border-color: rgba(248, 113, 113, 0.4); }
+
+/* 候选 */
+.candidates { display: flex; flex-wrap: wrap; gap: 6px; }
+.cand {
+  display: flex; align-items: center; gap: 5px;
+  padding: 4px 8px 4px 4px;
+  border-radius: 8px;
+  border: 1px solid var(--border-2);
+  background: var(--panel-2);
+  cursor: pointer;
+  font-size: 11.5px;
+  color: var(--text-dim);
+}
+.cand:hover { border-color: var(--accent); color: var(--text); }
+.cand img { width: 28px; height: 28px; border-radius: 5px; object-fit: cover; }
+.cand.cur { border-color: var(--accent); color: var(--text); }
+
+/* ===== 清单统计 ===== */
+.summary {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(68px, 1fr));
+  gap: 8px;
+}
+.stat {
+  padding: 11px 6px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  text-align: center;
+}
+.stat .v { font-size: 21px; font-weight: 700; font-variant-numeric: tabular-nums; line-height: 1.2; }
+.stat .k { font-size: 11px; color: var(--text-faint); white-space: nowrap; }
+
+/* ===== 提示块 ===== */
+.notice {
+  padding: 14px;
+  border-radius: var(--radius);
+  background: rgba(251, 191, 36, 0.08);
+  border: 1px solid rgba(251, 191, 36, 0.3);
+  color: var(--text-dim);
+  font-size: 12.5px;
+  line-height: 1.65;
+}
+.notice strong { display: block; margin-bottom: 6px; color: var(--warn); font-size: 13.5px; }
+.notice p { margin: 0 0 6px; }
+.notice p:last-child { margin-bottom: 0; }
+
+/* ===== 空态 ===== */
+.empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 34px 16px;
+  color: var(--text-faint);
+  text-align: center;
+  font-size: 13px;
+  line-height: 1.6;
+}
+.empty-icon { width: 34px; height: 34px; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; opacity: 0.6; }
+
+.footnote { font-size: 11.5px; color: var(--text-faint); }
+.sync-state-row { margin-bottom: 12px; }
+a { color: var(--info); }
+
+/* ===== 运行日志（底部抽屉） ===== */
+.sheet-scrim {
+  position: fixed; inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  z-index: 30;
+  animation: fade 0.18s;
+}
+@keyframes fade { from { opacity: 0; } }
+
+.logsheet {
+  position: fixed;
+  left: 0; right: 0; bottom: 0;
+  z-index: 31;
+  max-height: 62dvh;
+  display: flex;
+  flex-direction: column;
+  background: var(--panel);
+  border-top: 1px solid var(--border);
+  border-radius: 16px 16px 0 0;
+  padding-bottom: var(--sab);
+  animation: slideup 0.22s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+@keyframes slideup { from { transform: translateY(100%); } }
+.logsheet > header {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 8px 8px 16px;
+  border-bottom: 1px solid var(--border);
+  font-size: 13.5px;
+}
+.logsheet > header::before {
+  content: "";
+  position: absolute;
+  top: 6px; left: 50%;
+  width: 36px; height: 4px;
+  margin-left: -18px;
+  border-radius: 2px;
+  background: var(--border-2);
+}
+.logsheet .log {
+  flex: 1;
+  min-height: 120px;
+  overflow-y: auto;
+  margin: 0;
+  padding: 10px 14px 16px;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  font-family: "Cascadia Mono", Consolas, monospace;
+  font-size: 11.5px;
+  color: var(--text-dim);
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+.log .t { color: var(--text-faint); }
+.log .err { color: var(--err); }
+.log .ok { color: var(--ok); }
+
+/* =========================================================
+   宽屏：底部导航栏转侧边导航栏
+   Material 3 / Android 官方明确要求 —— 大屏继续用底部栏
+   既不符合人体工学（手够不到），视觉上也不平衡。
+   ========================================================= */
+@media (min-width: 900px) {
+  :root { --bottomnav-h: 0px; }
+
+  .app-body { flex-direction: row; }
+
+  .appnav {
+    order: -1;                 /* 放到左边 */
+    flex-direction: column;
+    justify-content: flex-start;
+    gap: 4px;
+    width: var(--rail-w);
+    height: auto;
+    padding: calc(var(--sat) + 10px) 0 10px;
+    border-top: none;
+    border-right: 1px solid var(--border);
+  }
+  .navitem {
+    flex: none;
+    width: 100%;
+    min-height: 64px;
+    border-radius: 0;
+  }
+  .navitem svg { width: 26px; height: 26px; }
+  .navitem.active { background: rgba(255, 107, 157, 0.1); }
+  /* 宽屏不用胶囊，改用左侧竖条 —— 必须把窄屏胶囊的定位覆盖干净，
+     否则 translateX(-50%) 会把竖条推到中间去 */
+  .navitem.active::before {
+    content: "";
+    position: absolute;
+    left: 0; top: 12px; bottom: 12px;
+    width: 3px;
+    height: auto;
+    transform: none;
+    border-radius: 0 3px 3px 0;
+    background: var(--accent);
+  }
+  .badge { left: auto; right: 10px; margin-left: 0; }
+
+  main {
+    padding: 16px 20px 20px;
+    gap: 16px;
+  }
+
+  /* 结果页在宽屏回到左右并排 */
+  .split { flex-direction: row; align-items: stretch; }
+  .split .pane { flex: 1 1 0; min-width: 0; }
+  .pane > .body { min-height: 420px; }
+
+  /* 表单不再占满整行 */
+  .card { padding: 16px 18px; }
+  .btn-row .block { flex: 0 0 auto; }
+  #btnRun, #btnClear { min-width: 130px; }
+  .dropzone { padding: 34px 20px; }
+  .logsheet { left: 50%; right: auto; bottom: 16px; width: 620px; margin-left: -310px; border-radius: 16px; }
+  .logsheet > header::before { display: none; }
+}
+
+/* 更宽的屏：内容别拉太长 */
+@media (min-width: 1280px) {
+  main { padding: 18px 28px 24px; }
+  .view { max-width: 1180px; }
+}
+
+/* =========================================================
+   窄屏细节
+   ========================================================= */
+@media (max-width: 899px) {
+  /* 窄屏把「来源」列藏掉。留着它清单表格会超出视口，
+     「移除」按钮被挤到屏幕外，用户根本找不到。 */
+  .src { display: none; }
+  /* 清单表格按内容自适应，别强制 440px */
+  #invBody table { min-width: 0; }
+  #invBody { overflow-x: auto; }
+  /* 结果表格有对照列（两张图），窄屏放不下就横向滚 */
+  .pane > .body { overflow: auto; }
+  .view { padding-bottom: 4px; }
+}
+
+@media (max-width: 380px) {
+  .pair img, .pair .noimg { width: 38px; height: 38px; }
+  td.thumb { width: 88px; }
+  .stat .v { font-size: 19px; }
+}

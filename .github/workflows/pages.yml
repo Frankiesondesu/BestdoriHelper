@@ -1,0 +1,49 @@
+name: 部署网页版（GitHub Pages）
+
+# 网页版是纯静态的（docs/ 本身就是站点根目录），没有构建步骤 ——
+# 直接把 docs/ 交给 Pages 部署即可。
+#
+# ⚠️ 首次需要在仓库里手动开一次：
+#    Settings -> Pages -> Build and deployment -> Source 选 "GitHub Actions"
+#    不选的话这个工作流会在 deploy 步骤失败（报 Pages 未启用）。
+#    选定之后，以后每次改动 docs/ 都会自动重新部署。
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - 'docs/**'
+      - '.github/workflows/pages.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# 同一时间只跑一个部署；新的推送取消排队中的旧任务
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - name: 取代码
+        uses: actions/checkout@v4
+
+      - name: 配置 Pages
+        uses: actions/configure-pages@v5
+
+      - name: 打包站点（docs/ 即站点根）
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: docs
+
+      - name: 部署
+        id: deploy
+        uses: actions/deploy-pages@v4

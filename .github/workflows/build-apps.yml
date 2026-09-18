@@ -1,0 +1,133 @@
+name: 构建安装包
+
+# 一次跑出两个平台的产物，并（打 tag 时）自动发 Release。
+#
+# 为什么不做 paths 过滤：`on.push.paths` 对 tag 推送同样生效 —— 打 tag 时如果
+# 对应的提交没改到那些路径，工作流就不会触发，Release 永远发不出来。
+# 这个坑很难察觉（没有报错）。所以这里不做过滤，代价只是每次 push 多跑几分钟，
+# 公开仓库的 Actions 额度是无限的。
+
+on:
+  push:
+    branches: [main, master]
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: write   # 打 tag 时要创建 Release
+
+jobs:
+  # ------------------------------------------------------------------
+  # 安卓 APK（Capacitor 壳）
+  # ------------------------------------------------------------------
+  android:
+    name: 安卓 APK
+    runs-on: ubuntu-latest
+    steps:
+      - name: 取代码
+        uses: actions/checkout@v4
+
+      - name: 装 Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: 装 JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: 装 Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: 装 npm 依赖
+        run: npm ci --no-audit --no-fund
+
+      - name: 生成安卓工程
+        run: |
+          # android/ 是生成物、没入库（230 MB），首次在这里现生成
+          if [ ! -d android ]; then
+            echo "android/ 不存在，用 Capacitor 生成"
+            npx cap add android
+          else
+            echo "android/ 已存在，跳过"
+          fi
+
+      - name: 同步网页资源进安卓工程
+        run: npx cap sync android
+
+      - name: 构建 debug APK
+        run: |
+          cd android
+          chmod +x gradlew
+          ./gradlew assembleDebug --no-daemon
+
+      - name: 上传 APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-apk
+          path: android/app/build/outputs/apk/debug/*.apk
+          if-no-files-found: error
+
+  # ------------------------------------------------------------------
+  # Windows 桌面版（PyInstaller）
+  # ------------------------------------------------------------------
+  windows:
+    name: Windows 桌面版
+    runs-on: windows-latest
+    steps:
+      - name: 取代码
+        uses: actions/checkout@v4
+
+      - name: 装 Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: 装依赖
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pyinstaller
+
+      - name: 打包（onedir + zip）
+        run: python scripts/build_win.py
+
+      - name: 上传 Windows 包
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-app
+          path: dist/BestdoriHelper-win.zip
+          if-no-files-found: error
+
+  # ------------------------------------------------------------------
+  # 打 tag 时把两个产物挂到 Release
+  # ------------------------------------------------------------------
+  release:
+    name: 发布 Release
+    needs: [android, windows]
+    if: startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-latest
+    steps:
+      - name: 取回两个产物
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: 创建 Release 并挂产物
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            artifacts/android-apk/*.apk
+            artifacts/windows-app/*.zip
+          generate_release_notes: true
+          body: |
+            ## 下载
+
+            | 平台 | 文件 | 说明 |
+            | --- | --- | --- |
+            | 安卓 | `app-debug.apk` | 传到手机安装（需允许「安装未知来源」）。同步 Bestdori 只在 App 里可用 |
+            | Windows | `BestdoriHelper-win.zip` | 解压后双击 `BestdoriHelper.exe` |
+
+            网页版（无需安装）：见仓库的 GitHub Pages 地址。
