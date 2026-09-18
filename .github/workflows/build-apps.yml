@@ -38,8 +38,15 @@ jobs:
           distribution: temurin
           java-version: '21'
 
-      - name: 装 Android SDK
-        uses: android-actions/setup-android@v3
+      # ubuntu runner **预装了** Android SDK（ANDROID_HOME=/usr/local/lib/android/sdk），
+      # 不需要再装。实测加 android-actions/setup-android@v3 这一步反而会失败
+      # （它可能再去下一遍 SDK），所以这里只确认一下环境。
+      - name: 确认 Android SDK
+        run: |
+          echo "ANDROID_HOME=$ANDROID_HOME"
+          echo "ANDROID_SDK_ROOT=$ANDROID_SDK_ROOT"
+          ls "$ANDROID_HOME/platforms" 2>/dev/null || echo "（无 platforms）"
+          ls "$ANDROID_HOME/build-tools" 2>/dev/null || echo "（无 build-tools）"
 
       - name: 装 npm 依赖
         run: npm ci --no-audit --no-fund
@@ -83,7 +90,9 @@ jobs:
       - name: 装 Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.12'
+          # 与本机验证通过的版本保持一致（本机 3.13）。用 3.12 时 PyInstaller
+          # 那步失败过一次 —— 依赖 wheel 的可用版本不同，会对 hook 有影响。
+          python-version: '3.13'
 
       - name: 装依赖
         run: |
@@ -93,6 +102,15 @@ jobs:
 
       - name: 打包（onedir + zip）
         run: python scripts/build_win.py
+
+      - name: 打包失败时打印诊断
+        if: failure()
+        run: |
+          echo "---- Python / 依赖版本 ----"
+          python -V
+          python -c "import PySide6, cv2, numpy, PIL; print('PySide6', PySide6.__version__); print('cv2', cv2.__version__); print('numpy', numpy.__version__); print('PIL', PIL.__version__)"
+          echo "---- dist 目录 ----"
+          dir dist /s /b 2>$null | Select-Object -First 40
 
       - name: 上传 Windows 包
         uses: actions/upload-artifact@v4
