@@ -437,6 +437,21 @@ button.pane-btn {
 .detail-sub { font-size: 13px; color: var(--text-dim); margin: 0 0 10px; }
 .detail-tags { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; }
 .detail-link { display: block; text-align: center; text-decoration: none; margin-top: 8px; }
+/* 被忽略的格在结果表里压暗，一眼能看出它不计入清单 */
+tr.row.ignored { opacity: 0.45; }
+/* 手动指定卡牌：可滚动的结果列表 */
+.pick-list {
+  max-height: 42vh; overflow-y: auto;
+  display: flex; flex-direction: column; gap: 6px;
+}
+.pick-item {
+  display: flex; align-items: center; gap: 10px; width: 100%;
+  text-align: left; padding: 6px 8px;
+}
+.pick-item img { width: 40px; height: 40px; border-radius: 6px; flex: none; background: var(--panel-2); }
+.pick-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pick-sub { flex: none; font-size: 11px; color: var(--text-faint); }
+.pill.warn { color: var(--warn); border-color: color-mix(in srgb, var(--warn) 45%, transparent); }
 
 #preview {
   position: relative;

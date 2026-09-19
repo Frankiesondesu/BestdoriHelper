@@ -299,7 +299,7 @@ async function runRecognition() {
 function addToInventory(cells, shotName, shotIndex) {
   let added = 0;
   cells.forEach((c, ci) => {
-    if (c.cardId == null) return;
+    if (c.cardId == null || c.ignored) return;   // ignored：用户手动忽略的格
     const k = cardKey(c.cardId, c.trained);
     const prev = S.inv.get(k);
     // 同一张卡可能被多格认出（重复卡面），保留分高的那次
@@ -445,7 +445,8 @@ function renderResults() {
         (info.band ? ` · ${escapeHtml(info.band)}` : '') + `</div>`
       : '<div class="name" style="color:var(--text-faint)">未识别</div>';
     const tags = info
-      ? `<span class="pill" style="color:${attrC};border-color:${attrC}66">${ATTR_CN[info.attribute] || info.attribute}</span> ` +
+      ? (r.ignored ? '<span class="pill warn">已忽略</span> ' : '') +
+        `<span class="pill" style="color:${attrC};border-color:${attrC}66">${ATTR_CN[info.attribute] || info.attribute}</span> ` +
         `<span class="pill">${rarityLabel(info.rarity)}</span>` +
         (r.trained ? ' <span class="pill ok">特训后</span>' : '')
       : '';
@@ -459,7 +460,7 @@ function renderResults() {
         `<span class="mono" style="color:var(--text-faint)">${c.score.toFixed(2)}</span></div>`;
     }).join('');
 
-    return `<tr class="row${sel}" data-shot="${r.si}" data-cell="${r.ci}">
+    return `<tr class="row${sel}${r.ignored ? ' ignored' : ''}" data-shot="${r.si}" data-cell="${r.ci}">
       <td class="thumb">${pair}</td>
       <td>${name}${tags ? `<div style="margin-top:3px">${tags}</div>` : ''}</td>
       <td class="mono"><span class="score ${scoreClass(r.score)}">${r.score.toFixed(3)}</span>
@@ -928,6 +929,64 @@ function zoomCellImage(si, ci, which) {
   );
 }
 
+/**
+ * 手动指定某一格是哪张卡（搜全卡池）。
+ * 桌面端一直有「手动指定卡牌…」，网页端只有 top3 候选 —— 候选都不对时没辙。
+ */
+function pickCardManually(si, ci) {
+  const cell = S.shots[si].cells[ci];
+  const cur = cell.cardId != null ? escapeHtml(cardInfo(cell.cardId).name) : '未识别';
+  openLightbox(
+    `<div class="field"><label for="cardSearch">搜索卡牌（卡名 / 角色 / 卡号）</label>
+       <input type="search" id="cardSearch" placeholder="例如：香澄 / 户山 / 1858"></div>
+     <div class="pick-list" id="cardPickList"></div>
+     <p class="footnote">点一条即指定给第 ${ci + 1} 格（当前：${cur}）。
+       特训状态按未特训处理，之后可用候选列表纠正。</p>`,
+    `手动指定 · 第 ${ci + 1} 格`,
+  );
+
+  const render = () => {
+    const q = $('cardSearch').value.trim().toLowerCase();
+    const cards = S.meta?.cards || {};
+    let ids = Object.keys(cards).map(Number);
+    if (q) {
+      ids = ids.filter((id) => {
+        const i = cardInfo(id);
+        return `${i.name}${i.character}${i.band}${id}`.toLowerCase().includes(q);
+      });
+    }
+    const shown = ids.slice(0, 40);
+    $('cardPickList').innerHTML = shown.length
+      ? shown.map((id) => {
+        const i = cardInfo(id);
+        return `<button class="pick-item" data-pick-card="${id}">
+            <img src="data/thumbs/${id}_n.webp" loading="lazy" alt=""
+                 onerror="this.onerror=null;this.src='data/thumbs/${id}_t.webp'">
+            <span class="pick-name">${escapeHtml(i.name)}</span>
+            <span class="pick-sub">${escapeHtml(i.character)} · ${id}</span>
+          </button>`;
+      }).join('')
+      : '<p class="footnote">没有匹配的卡。</p>';
+
+    $('cardPickList').querySelectorAll('[data-pick-card]').forEach((el) => {
+      el.onclick = () => {
+        cell.cardId = Number(el.dataset.pickCard);
+        cell.trained = 0;
+        cell.score = Math.max(cell.score || 0, 0.99);
+        cell.gap = 1;
+        cell.ignored = false;          // 手动指定等于明确要它，顺手取消忽略
+        buildInventoryFromShots();
+        renderResults();
+        renderPreview();
+        closeLightbox();
+        log(`第 ${ci + 1} 格手动指定为卡 ${el.dataset.pickCard}`, 'ok');
+      };
+    });
+  };
+  render();
+  $('cardSearch').oninput = render;
+}
+
 /** 看某一格的卡面详情（两张对照图 + 卡名属性 + 卡面页）。
  *  这里的图也能点：点哪张就放大哪张，来回切换。 */
 function showCardDetail(si, ci) {
@@ -967,6 +1026,14 @@ function showCardDetail(si, ci) {
          在 Bestdori 打开卡面页 ↗</a>`
     : '<p class="footnote">这一格没有识别出卡牌，所以没有可核对的卡面页。</p>';
 
+  const ignoreRow =
+    `<div class="btn-row">
+       <button class="small block" id="btnManualPick">手动指定卡牌…</button>
+       <button class="small block ${r.ignored ? '' : 'danger'}" id="btnIgnoreCell">
+         ${r.ignored ? '取消忽略（放回清单）' : '忽略这一格（从清单移除）'}
+       </button>
+     </div>`;
+
   openLightbox(
     imgs +
     `<h3 class="detail-name">${escapeHtml(info ? info.name : '未识别')}</h3>` +
@@ -975,9 +1042,23 @@ function showCardDetail(si, ci) {
         (info.band ? ` · ${escapeHtml(info.band)}` : '') +
         ` · 卡号 ${r.cardId}</p>`
       : '') +
-    tags + foot,
+    tags + ignoreRow + foot,
     `卡牌详情 · 第 ${ci + 1} 格`,
   );
+
+  $('btnManualPick').onclick = () => pickCardManually(si, ci);
+
+  // 忽略/恢复这一格 —— 桌面端有「忽略此项（从清单移除）」，这里补齐
+  $('btnIgnoreCell').onclick = () => {
+    const cell = S.shots[si].cells[ci];
+    cell.ignored = !cell.ignored;
+    buildInventoryFromShots();
+    renderResults();
+    closeLightbox();
+    log(cell.ignored
+      ? `已忽略第 ${ci + 1} 格（不计入清单）`
+      : `已恢复第 ${ci + 1} 格`, 'ok');
+  };
 
   // 详情里的两张图也能点开单独放大（与上面的大图互相切换）
   $('lbBody').querySelectorAll('.detail-imgs img[data-zoom]').forEach((img) => {
