@@ -716,6 +716,13 @@ a { color: var(--info); }
   .view:has(.split) { height: 100%; min-height: 0; }
   .split { flex-direction: row; align-items: stretch; min-height: 0; }
   .split .pane { flex: 1 1 0; min-width: 0; min-height: 0; }
+  /* 原图是横向的（2400x1080），按宽度缩放后只占面板上部一小块，
+     下面留一大片空 —— 让它在面板里垂直居中，视觉上才平衡。 */
+  .split .pane > .body { display: flex; align-items: center; justify-content: center; }
+  .split .pane > .body > #preview { margin: auto; }
+  /* 原图是 2400x1080 的横向图，本来就吃宽度 —— 左栏给多一点，
+     图更大、上下留白更少；结果表那边行内容不多，稍微窄点也够。 */
+  .split .pane:first-child { flex: 1.5 1 0; }
   .pane > .body { min-height: 420px; }
 
   /* 表单不再占满整行 */
@@ -730,7 +737,10 @@ a { color: var(--info); }
 /* 更宽的屏：内容别拉太长 */
 @media (min-width: 1280px) {
   main { padding: 18px 28px 24px; }
-  .view { max-width: 1180px; }
+  /* 1180 是给"文档站"定的宽度，用在工具界面上太窄 ——
+     1920 的屏上右侧会空出 600+ px。放宽到 1680 并居中：
+     内容基本铺满，超宽屏也不会把表格拉成一条。 */
+  .view { max-width: 1680px; margin: 0 auto; width: 100%; }
 }
 
 /* =========================================================
