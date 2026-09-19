@@ -453,6 +453,9 @@ button.pane-btn {
 }
 #preview img { width: 100%; height: auto; display: block; border-radius: 8px; }
 #overlay { position: absolute; inset: 0; pointer-events: none; }
+/* 放大后要靠拖动平移：禁掉图片自带的拖拽与文本选中，否则一拖就变成
+   浏览器在拖图/选文字，而不是平移画面 */
+#preview img { -webkit-user-drag: none; user-select: none; }
 #overlay .cellbox {
   position: absolute;
   border: 2px solid var(--ok);
@@ -692,8 +695,12 @@ a { color: var(--info); }
   }
 
   /* 结果页在宽屏回到左右并排 */
-  .split { flex-direction: row; align-items: stretch; }
-  .split .pane { flex: 1 1 0; min-width: 0; }
+  /* 结果页的高度链：让两栏**各自内部滚动**。
+     不约束的话 .split 的高度会等于最高的那个子元素（右侧结果表能有
+     3000+ px），左栏原图面板被一起撑高，放大后根本没有可拖的区域。 */
+  .view:has(.split) { height: 100%; min-height: 0; }
+  .split { flex-direction: row; align-items: stretch; min-height: 0; }
+  .split .pane { flex: 1 1 0; min-width: 0; min-height: 0; }
   .pane > .body { min-height: 420px; }
 
   /* 表单不再占满整行 */

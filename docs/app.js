@@ -834,6 +834,8 @@ function applyZoomView() {
     badge.hidden = ZV.scale <= 1.01;
     badge.textContent = `${ZV.scale.toFixed(1)}×`;
   }
+  // 放大后光标变抓手，提示"可以拖"
+  el.style.cursor = ZV.scale > 1.01 ? (ZV.dragging ? 'grabbing' : 'grab') : 'default';
 }
 
 function setZoom(s) {
@@ -883,6 +885,28 @@ function bindPreviewZoom() {
   }, { passive: false });
 
   body.addEventListener('touchend', () => { ZV.dragging = false; ZV.pinch = 0; });
+
+  // ---- 鼠标拖动（电脑上放大后平移）----
+  // 之前只写了触摸那套，电脑上放大后根本拖不动 —— 用户反馈的就是这个。
+  // mousemove/mouseup 挂在 window 上，这样鼠标拖出容器也不会中断。
+  body.addEventListener('mousedown', (e) => {
+    if (ZV.scale <= 1.01 || e.button !== 0) return;   // 没放大就没得拖
+    ZV.dragging = true;
+    ZV.sx = e.clientX;
+    ZV.sy = e.clientY;
+    ZV.bx = ZV.x;
+    ZV.by = ZV.y;
+    e.preventDefault();          // 别让浏览器把 <img> 拖走、也别选中文字
+  });
+
+  window.addEventListener('mousemove', (e) => {
+    if (!ZV.dragging) return;
+    ZV.x = ZV.bx + (e.clientX - ZV.sx);
+    ZV.y = ZV.by + (e.clientY - ZV.sy);
+    applyZoomView();
+  });
+
+  window.addEventListener('mouseup', () => { ZV.dragging = false; });
   // 桌面上的快捷复位/快速放大
   body.addEventListener('dblclick', () => setZoom(ZV.scale > 1.01 ? 1 : 2.5));
 }
