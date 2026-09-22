@@ -47,13 +47,16 @@ done
 
 export GIT_TERMINAL_PROMPT=0
 
-# 临时文件放 .git/ 下用相对路径。
-# 不用 mktemp -d：它返回 Windows 绝对路径（C:\Users\...），Git Bash 的 rm
-# 处理不了，会被 safe-delete 守卫判成非法路径而 FAIL_CLOSED，退出时刷一屏报错。
-TMP=".git/publish-tmp"
-rm -rf "$TMP" 2>/dev/null || true
-mkdir -p "$TMP"
-trap 'rm -rf "$TMP" 2>/dev/null || true' EXIT
+# ⚠️ 这个脚本**刻意不创建任何临时文件、也不调用 rm**。
+#
+# 2026-09-22 出过事故：当时用 TMP=".git/publish-tmp" + `rm -rf "$TMP"`，
+# 一次 SIGTERM 之后 .git 被破坏（refs/ 和 pack 文件消失，77 MB 只剩 749 KB，
+# git 直接报 "not a git repository"）。本机的 safe-delete 垫片有路径规范化 bug
+# （实测会把 CWD 和绝对路径拼在一起，报 CanonicalizePath 错误），
+# 在 .git 里做删除极不可控。
+#
+# 所以现在：下载的文件直接走**进程替换**比对，推送输出存进**变量**，
+# 全程不落地、不删除。工作区文件也没丢过，但没必要冒这个险。
 
 step() { printf '\n\033[1m== %s\033[0m\n' "$1"; }
 ok()   { printf '  \033[32m✓\033[0m %s\n' "$1"; }
@@ -84,11 +87,13 @@ remote_sha() {
 # 输出 "none" 表示直连可用；返回 1 表示都不通。
 probe_url() {   # $1 = 代理（空串表示直连）
   local code
+  # 只需要状态码，不要响应体；/dev/null 在 Git Bash 下写会失败（curl 退出码 23），
+  # 但那不影响打印出来的状态码 —— 所以这里只看 code，不看退出码。
   if [ -z "$1" ]; then
-    code="$(timeout 20 curl -s -o "$TMP/probe" -w '%{http_code}' \
+    code="$(timeout 20 curl -s -o /dev/null -w '%{http_code}' \
               --noproxy '*' https://github.com 2>/dev/null)"
   else
-    code="$(timeout 15 curl -s -o "$TMP/probe" -w '%{http_code}' \
+    code="$(timeout 15 curl -s -o /dev/null -w '%{http_code}' \
               -x "$1" https://github.com 2>/dev/null)"
   fi
   [ "$code" = "200" ]
@@ -118,7 +123,17 @@ if [ -n "$(git status --porcelain)" ]; then
     exit 1
   fi
   git add -A
-  git commit -q -F - <<<"$MSG"
+  # 必须检查退出码 —— 踩过：新建的 .git 没配 user.name/user.email 时
+  # `git commit` 直接 fatal 失败，但脚本照样打印「已提交」，然后一路跑到
+  # 「远端已是这个提交，无需推送」，看起来完全正常，其实什么都没提交。
+  if ! git commit -q -F - <<<"$MSG"; then
+    bad "提交失败"
+    echo
+    echo "  最常见的原因是这个仓库没配提交身份，设一下再试："
+    echo "    git config user.name  \"你的名字\""
+    echo "    git config user.email \"你的邮箱\""
+    exit 1
+  fi
   ok "已提交：$(git log --oneline -1)"
 else
   ok "工作区干净"
@@ -163,12 +178,31 @@ else
   echo "  本地 $LOCAL_SHA -> 远端 $REMOTE_SHA，开始推送（体积大时可能要十几分钟）…"
   # 走代理时偶发 TLS 断连（schannel: server closed abruptly / missing close_notify），
   # 重试一次通常就好。重试前确认远端没被推上去，避免重复推。
+  # 但**认证失败不重试** —— 那是凭据问题，重试多少次都一样，得让用户去重新授权。
   pushed=0
   for attempt in 1 2 3; do
-    if git push --progress origin "$BRANCH"; then
+    push_out="$(git push --progress origin "$BRANCH" 2>&1)"
+    rc=$?
+    printf '%s\n' "$push_out"
+    if [ "$rc" -eq 0 ]; then
       pushed=1
       break
     fi
+
+    if printf '%s' "$push_out" | grep -qiE "Authentication failed|Invalid username or token|could not read Username|terminal prompts disabled"; then
+      bad "认证失败 —— 凭据无效或已被吊销（不是网络问题，重试没用）"
+      echo
+      echo "  恢复步骤："
+      echo "    1) 清掉本机存的失效凭据："
+      echo "       printf 'protocol=https\\nhost=github.com\\n\\n' | git credential reject"
+      echo "    2) 触发浏览器重新授权（这步别设 GIT_TERMINAL_PROMPT=0，否则不弹窗）："
+      echo "       git push --dry-run origin HEAD:refs/heads/__auth_probe"
+      echo
+      echo "  提示：'git ls-remote' 成功不代表凭据有效 —— 公开仓库匿名也能读。"
+      echo "        要测凭据必须用 'git push --dry-run'。"
+      exit 1
+    fi
+
     now_remote="$(remote_sha || true)"
     if [ "$now_remote" = "$LOCAL_SHA" ]; then
       warn "推送报错，但远端已是目标提交（实际成功了）"
@@ -176,7 +210,7 @@ else
       break
     fi
     if [ "$attempt" -lt 3 ]; then
-      warn "第 $attempt 次推送失败，5 秒后重试…"
+      warn "第 $attempt 次推送失败（疑似网络），5 秒后重试…"
       sleep 5
     fi
   done
@@ -216,12 +250,10 @@ fi
 
 step "4/4  等待 Pages 部署并校验（最多 8 分钟）"
 
-# 关键：拿**仓库里的 blob** 当基准，不是工作区文件 ——
-# core.autocrlf 会让两者差「行数」个字节，拿工作区比会误判成没部署。
-for f in app.js style.css index.html; do
-  git cat-file blob "HEAD:docs/$f" > "$TMP/repo_$f" 2>/dev/null || : > "$TMP/repo_$f"
-done
-
+# 关键两点：
+#   1. 拿**仓库里的 blob** 当基准，不是工作区文件 —— core.autocrlf 会让两者差
+#      「行数」个字节（app.js 1582 行 → 少 1582），拿工作区比会误判成没部署。
+#   2. 用**进程替换**比对，不落任何临时文件（见文件开头的事故说明）。
 deadline=$(( $(date +%s) + 480 ))
 try=0
 while :; do
@@ -229,17 +261,12 @@ while :; do
   all_same=1
   detail=""
   for f in app.js style.css; do
-    if timeout 30 curl -sf -o "$TMP/live_$f" \
-         "$SITE/$f?v=$RANDOM$try" 2>/dev/null; then
-      if cmp -s "$TMP/repo_$f" "$TMP/live_$f"; then
-        detail="$detail $f=一致"
-      else
-        all_same=0
-        detail="$detail $f=旧($(stat -c %s "$TMP/live_$f" 2>/dev/null || echo '?')B)"
-      fi
+    if cmp -s <(git cat-file blob "HEAD:docs/$f" 2>/dev/null) \
+              <(timeout 30 curl -sf "$SITE/$f?v=$RANDOM$try" 2>/dev/null); then
+      detail="$detail $f=一致"
     else
       all_same=0
-      detail="$detail $f=取不到"
+      detail="$detail $f=不一致或取不到"
     fi
   done
 
