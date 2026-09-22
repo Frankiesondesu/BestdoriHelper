@@ -64,6 +64,26 @@ remote_sha() {
   return 1
 }
 
+# 挑一个真能连上 GitHub 的代理。
+#
+# 环境里默认带着沙箱自己的代理（$http_proxy），它会挂 —— 实测表现是
+# `CONNECT tunnel failed, response 502`，或者干脆连接超时（curl 返回 000）。
+# 这时退回 Frankieson 本机的 127.0.0.1:7897。
+# 输出 "none" 表示直连可用；返回 1 表示都不通。
+pick_proxy() {
+  local p
+  for p in "${http_proxy:-}" "http://127.0.0.1:7897"; do
+    [ -n "$p" ] || continue
+    if timeout 15 curl -sf -o /dev/null -x "$p" https://github.com 2>/dev/null; then
+      printf '%s' "$p"; return 0
+    fi
+  done
+  if timeout 15 curl -sf -o /dev/null --noproxy '*' https://github.com 2>/dev/null; then
+    printf 'none'; return 0
+  fi
+  return 1
+}
+
 # ---- 1. 有改动就提交 ---------------------------------------------------
 
 step "1/4  检查工作区"
@@ -87,6 +107,22 @@ fi
 # ---- 2. 推送 -----------------------------------------------------------
 
 step "2/4  推送到 origin/$BRANCH"
+
+# 先把代理定下来，否则后面每一步都要跟超时和 502 纠缠
+if ! PROXY="$(pick_proxy)"; then
+  bad "沙箱代理、本机 7897、直连都不通，没法推送"
+  exit 1
+fi
+case "$PROXY" in
+  none)
+    unset http_proxy https_proxy HTTP_PROXY HTTPS_PROXY
+    ok "直连可用" ;;
+  "${http_proxy:-}")
+    ok "用沙箱代理 $PROXY" ;;
+  *)
+    export http_proxy="$PROXY" https_proxy="$PROXY"
+    ok "沙箱代理不通，改用 $PROXY" ;;
+esac
 
 LOCAL_SHA="$(git rev-parse HEAD)"
 if ! REMOTE_SHA="$(remote_sha)"; then
