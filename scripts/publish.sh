@@ -52,6 +52,18 @@ ok()   { printf '  \033[32m✓\033[0m %s\n' "$1"; }
 bad()  { printf '  \033[31m✗\033[0m %s\n' "$1"; }
 warn() { printf '  \033[33m!\033[0m %s\n' "$1"; }
 
+# 远端分支当前指向。走代理时 ls-remote 也会偶发断连（返回空），
+# 一次失败不代表远端有问题，重试几次再下结论。
+remote_sha() {
+  local sha="" i
+  for i in 1 2 3 4; do
+    sha="$(git ls-remote origin "refs/heads/$BRANCH" 2>/dev/null | cut -f1)"
+    if [ -n "$sha" ]; then printf '%s' "$sha"; return 0; fi
+    [ "$i" -lt 4 ] && sleep 3
+  done
+  return 1
+}
+
 # ---- 1. 有改动就提交 ---------------------------------------------------
 
 step "1/4  检查工作区"
@@ -77,10 +89,8 @@ fi
 step "2/4  推送到 origin/$BRANCH"
 
 LOCAL_SHA="$(git rev-parse HEAD)"
-REMOTE_SHA="$(git ls-remote origin "refs/heads/$BRANCH" 2>/dev/null | cut -f1)"
-
-if [ -z "$REMOTE_SHA" ]; then
-  bad "连不上远端，或远端没有 $BRANCH 分支"
+if ! REMOTE_SHA="$(remote_sha)"; then
+  bad "连不上远端，或远端没有 $BRANCH 分支（重试 4 次都失败）"
   exit 1
 fi
 
@@ -103,7 +113,7 @@ else
       pushed=1
       break
     fi
-    now_remote="$(git ls-remote origin "refs/heads/$BRANCH" 2>/dev/null | cut -f1)"
+    now_remote="$(remote_sha || true)"
     if [ "$now_remote" = "$LOCAL_SHA" ]; then
       warn "推送报错，但远端已是目标提交（实际成功了）"
       pushed=1
