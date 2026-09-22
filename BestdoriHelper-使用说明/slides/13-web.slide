@@ -1,0 +1,114 @@
+<Slide style={{ width: 1280, height: 720, padding: '20px 72px', background: '#F7F8FA', flexDirection: 'column' }}>
+
+    {/* ===== A · 标题块 ===== */}
+    <Box style={{ height: 100, flexDirection: 'row', alignItems: 'center', gap: 16 }}>
+        <Box style={{ width: 6, height: 38, background: '#E8478B', borderRadius: 3 }} />
+        <Text style={{ fontSize: 36, fontWeight: 'bold', color: '#1F2430' }}>
+            在官网上导入
+        </Text>
+        <Text style={{ fontSize: 19, color: '#8A93A6' }}>
+            bestdori.com/profile/manager
+        </Text>
+    </Box>
+
+    {/* ===== B · 内容区：左截图 + 右步骤 ===== */}
+    <Box style={{ flex: 1, flexDirection: 'row', gap: 26, alignItems: 'center' }}>
+
+        {/* 左：带 ①②③④ 标注的官网实拍 */}
+        <Box style={{
+            width: 700, height: 438, borderRadius: 12, overflow: 'hidden',
+            background: '#1F2430', border: '1px solid #2E3442',
+            boxShadow: '0 6px 24px rgba(31,36,48,0.18)',
+        }}>
+            <Image src="assets/web_import_annotated.png" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+        </Box>
+
+        {/* 右：四步 + 提醒 */}
+        <Box style={{ flex: 1, flexDirection: 'column', gap: 15 }}>
+
+            <Box style={{ flexDirection: 'row', gap: 12, alignItems: 'flex-start' }}>
+                <Box style={{
+                    width: 30, height: 30, borderRadius: 8, background: '#E8478B',
+                    alignItems: 'center', justifyContent: 'center',
+                }}>
+                    <Text style={{ fontSize: 16, fontWeight: 'bold', color: '#FFFFFF' }}>1</Text>
+                </Box>
+                <Box style={{ flex: 1, flexDirection: 'column' }}>
+                    <Text style={{ fontSize: 18, fontWeight: 'bold', color: '#1F2430' }}>先登录</Text>
+                    <Text style={{ fontSize: 14, color: '#5A6376', lineHeight: 1.4 }}>
+                        页面中部 Cloud Storage 那段文字里的 Log In
+                    </Text>
+                </Box>
+            </Box>
+
+            <Box style={{ flexDirection: 'row', gap: 12, alignItems: 'flex-start' }}>
+                <Box style={{
+                    width: 30, height: 30, borderRadius: 8, background: '#E8478B',
+                    alignItems: 'center', justifyContent: 'center',
+                }}>
+                    <Text style={{ fontSize: 16, fontWeight: 'bold', color: '#FFFFFF' }}>2</Text>
+                </Box>
+                <Box style={{ flex: 1, flexDirection: 'column' }}>
+                    <Text style={{ fontSize: 18, fontWeight: 'bold', color: '#1F2430' }}>点侧栏 Import</Text>
+                    <Text style={{ fontSize: 14, color: '#5A6376', lineHeight: 1.4 }}>
+                        左栏 PROFILE 组里，Cloud Storage 下一行
+                    </Text>
+                </Box>
+            </Box>
+
+            <Box style={{ flexDirection: 'row', gap: 12, alignItems: 'flex-start' }}>
+                <Box style={{
+                    width: 30, height: 30, borderRadius: 8, background: '#E8478B',
+                    alignItems: 'center', justifyContent: 'center',
+                }}>
+                    <Text style={{ fontSize: 16, fontWeight: 'bold', color: '#FFFFFF' }}>3</Text>
+                </Box>
+                <Box style={{ flex: 1, flexDirection: 'column' }}>
+                    <Text style={{ fontSize: 18, fontWeight: 'bold', color: '#1F2430' }}>粘贴档案</Text>
+                    <Text style={{ fontSize: 14, color: '#5A6376', lineHeight: 1.4 }}>
+                        粘进 Profile Data 文本框
+                    </Text>
+                </Box>
+            </Box>
+
+            <Box style={{ flexDirection: 'row', gap: 12, alignItems: 'flex-start' }}>
+                <Box style={{
+                    width: 30, height: 30, borderRadius: 8, background: '#E8478B',
+                    alignItems: 'center', justifyContent: 'center',
+                }}>
+                    <Text style={{ fontSize: 16, fontWeight: 'bold', color: '#FFFFFF' }}>4</Text>
+                </Box>
+                <Box style={{ flex: 1, flexDirection: 'column' }}>
+                    <Text style={{ fontSize: 18, fontWeight: 'bold', color: '#1F2430' }}>点 Import</Text>
+                    <Text style={{ fontSize: 14, color: '#5A6376', lineHeight: 1.4 }}>
+                        文本框左下角正下方那个按钮
+                    </Text>
+                </Box>
+            </Box>
+
+            <Box style={{
+                flexDirection: 'row', gap: 10, alignItems: 'flex-start',
+                background: 'rgba(232,71,139,0.07)', borderRadius: 10, padding: '11px 15px',
+                marginTop: 2,
+            }}>
+                <Box style={{ width: 4, height: 44, background: '#E8478B', borderRadius: 2 }} />
+                <Box style={{ flex: 1, flexDirection: 'column' }}>
+                    <Text style={{ fontSize: 14, fontWeight: 'bold', color: '#1F2430', lineHeight: 1.45 }}>
+                        登录入口不在右上角，在页面中部
+                    </Text>
+                    <Text style={{ fontSize: 14, color: '#5A6376', lineHeight: 1.45 }}>
+                        第一次进会弹「Welcome」设置框，关掉就行。等级 / 技能填的是满值，只影响算分，不影响卡牌归属。
+                    </Text>
+                </Box>
+            </Box>
+
+        </Box>
+    </Box>
+
+    {/* ===== C · 页脚条 ===== */}
+    <Box style={{ height: 60, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+        <Text style={{ fontSize: 15, color: '#8A93A6' }}>BestdoriHelper 使用说明</Text>
+        <Text style={{ fontSize: 15, color: '#8A93A6' }}>13 / 14</Text>
+    </Box>
+
+</Slide>

@@ -29,3 +29,14 @@ android/
 # 助手的工作记忆 / 开发日志 —— 不是项目源码，不入库（更不该推到公开仓库）
 .workbuddy/
 .workbuddy-ai/
+
+# 说明 PPT 的渲染产物：14 页 × 1.5 MB ≈ 10 MB，且每次改版都重新生成。
+# 跑 `python scripts/render_slides.py` 就能重建，不入库。
+BestdoriHelper-使用说明/render/
+
+# SlideDSL 工具的中间产物：图片缓存 + 日志，都是可再生的
+BestdoriHelper-使用说明/.cache/
+BestdoriHelper-使用说明/.slidep/
+
+# Office 打开文件时留下的临时锁文件（~$xxx.pptx）
+~$*

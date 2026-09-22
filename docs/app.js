@@ -458,16 +458,28 @@ function renderResults() {
         `<img src="${thumbUrl(c.cardId, c.trained)}" loading="lazy" alt="">` +
         `<span>${escapeHtml(ci2.character || ci2.name).slice(0, 8)}</span>` +
         `<span class="mono" style="color:var(--text-faint)">${c.score.toFixed(2)}</span></div>`;
-    }).join('');
+    }).join('') +
+      // 三个候选都不对时的出口 —— 就摆在候选旁边，别让人去详情页里翻
+      `<button class="cand cand-more" data-pick-manual="${r.si}:${r.ci}"
+         title="三个候选都不是？搜全卡池自己指定">都不对？搜卡面</button>`;
+
+    // 候选行：多个候选、或压根没认出来时都要显示（后者更要显示，那才是重灾区）
+    const showCands = (r.top3 && r.top3.length > 1) || r.cardId == null;
 
     return `<tr class="row${sel}${r.ignored ? ' ignored' : ''}" data-shot="${r.si}" data-cell="${r.ci}">
       <td class="thumb">${pair}</td>
       <td>${name}${tags ? `<div style="margin-top:3px">${tags}</div>` : ''}</td>
       <td class="mono"><span class="score ${scoreClass(r.score)}">${r.score.toFixed(3)}</span>
         <div style="font-size:11px;color:var(--text-faint)">+${r.gap.toFixed(3)}${r.inliers ? ` · ${r.inliers}内点` : ''}</div></td>
-      <td style="width:1%"><span class="pill">格${r.ci}</span></td>
+      <td style="width:1%">
+        <div class="cellops">
+          <span class="pill">格${r.ci}</span>
+          <button class="pill fix" data-pick-manual="${r.si}:${r.ci}"
+                  title="改判这一格（搜卡面 / 输卡号）">改</button>
+        </div>
+      </td>
     </tr>
-    ${r.top3 && r.top3.length > 1 ? `<tr><td colspan="4" style="padding-top:0;border-bottom:1px solid rgba(46,46,58,.5)">
+    ${showCands ? `<tr><td colspan="4" style="padding-top:0;border-bottom:1px solid rgba(46,46,58,.5)">
       <div class="candidates">${cands}</div></td></tr>` : ''}`;
   }).join('');
 
@@ -514,6 +526,17 @@ function renderResults() {
       buildInventoryFromShots();
       renderPreview(); renderResults();
       log(`格 ${ci} 手动改为卡 ${cid}${tr2 ? '（特训后）' : ''}`, 'ok');
+    };
+  });
+  // 「都不对？搜卡面」/「改」—— 打开全卡池搜索
+  body.querySelectorAll('[data-pick-manual]').forEach((el) => {
+    el.onclick = (ev) => {
+      ev.stopPropagation();
+      const [si, ci] = el.dataset.pickManual.split(':').map(Number);
+      S.selected = { shot: si, cell: ci };
+      if (si !== S.activeShot) S.activeShot = si;
+      renderPreview();
+      pickCardManually(si, ci);
     };
   });
 }
@@ -811,7 +834,10 @@ function setLbScale(s) {
 
 function applyLbScale() {
   const img = $('lbBody').querySelector('img');
-  if (img) img.style.width = `${Math.round(LB_SCALE * 100)}%`;
+  if (!img) return;
+  // 1x 时按 480px 基准显示（之前是 100% 容器宽，大屏上整屏都是图，太大）；
+  // 放大后才用百分比撑开，配合滚动/拖动看细节。
+  img.style.width = LB_SCALE <= 1.01 ? 'min(480px, 100%)' : `${Math.round(LB_SCALE * 100)}%`;
 }
 
 // ===== 结果页原图：原位缩放（滚轮 / 双指 / 拖动）=====
@@ -931,47 +957,76 @@ function zoomCellImage(si, ci, which) {
 
 /**
  * 手动指定某一格是哪张卡（搜全卡池）。
- * 桌面端一直有「手动指定卡牌…」，网页端只有 top3 候选 —— 候选都不对时没辙。
+ *
+ * 为什么必须有：识别只给 top3 候选，三个都不对时用户就没路可走了 ——
+ * 这是「识别错了怎么办」的最后一道兜底，所以入口要显眼、还要能按卡号直查。
+ *
+ * 卡号从哪来：Bestdori 卡面详情页网址 bestdori.com/info/cards/1858 最后那个数字。
  */
 function pickCardManually(si, ci) {
   const cell = S.shots[si].cells[ci];
   const cur = cell.cardId != null ? escapeHtml(cardInfo(cell.cardId).name) : '未识别';
+
   openLightbox(
-    `<div class="field"><label for="cardSearch">搜索卡牌（卡名 / 角色 / 卡号）</label>
+    `<div class="field"><label for="cardSearch">搜卡面：卡名 / 角色 / 乐队 / 卡号</label>
        <input type="search" id="cardSearch" placeholder="例如：香澄 / 户山 / 1858"></div>
+     <label class="pick-trained"><input type="checkbox" id="cardTrained"
+        ${cell.trained ? 'checked' : ''}> 以「特训后」形态登记</label>
+     <div class="pick-count" id="cardPickCount"></div>
      <div class="pick-list" id="cardPickList"></div>
      <p class="footnote">点一条即指定给第 ${ci + 1} 格（当前：${cur}）。
-       特训状态按未特训处理，之后可用候选列表纠正。</p>`,
+       卡号就是 Bestdori 卡面详情页网址
+       <span class="mono">bestdori.com/info/cards/<b>1858</b></span>
+       里最后那个数字，直接输进去能精确定位。</p>`,
     `手动指定 · 第 ${ci + 1} 格`,
   );
 
   const render = () => {
-    const q = $('cardSearch').value.trim().toLowerCase();
+    const raw = $('cardSearch').value.trim();
+    const q = raw.toLowerCase();
     const cards = S.meta?.cards || {};
     let ids = Object.keys(cards).map(Number);
+
+    // 纯数字 = 卡号直查；精确命中的那张提到最前面，
+    // 免得输 1858 被 11858 之类的模糊结果顶掉
+    const exact = /^\d+$/.test(raw) ? Number(raw) : null;
     if (q) {
       ids = ids.filter((id) => {
         const i = cardInfo(id);
         return `${i.name}${i.character}${i.band}${id}`.toLowerCase().includes(q);
       });
     }
-    const shown = ids.slice(0, 40);
+    if (exact != null && cards[exact]) {
+      ids = [exact, ...ids.filter((id) => id !== exact)];
+    }
+    // 没搜索词时按卡号倒序（新卡在前）；有搜索词就保持库里顺序
+    if (!q) ids.sort((a, b) => b - a);
+
+    const shown = ids.slice(0, 60);
+    $('cardPickCount').innerHTML = ids.length
+      ? `匹配 <b>${ids.length}</b> 张` +
+        (ids.length > shown.length
+          ? `，显示前 ${shown.length} 张 —— 再输几个字缩小范围`
+          : '')
+      : '';
+
     $('cardPickList').innerHTML = shown.length
       ? shown.map((id) => {
         const i = cardInfo(id);
-        return `<button class="pick-item" data-pick-card="${id}">
+        const hit = id === exact ? ' exact' : '';
+        return `<button class="pick-item${hit}" data-pick-card="${id}">
             <img src="data/thumbs/${id}_n.webp" loading="lazy" alt=""
                  onerror="this.onerror=null;this.src='data/thumbs/${id}_t.webp'">
             <span class="pick-name">${escapeHtml(i.name)}</span>
             <span class="pick-sub">${escapeHtml(i.character)} · ${id}</span>
           </button>`;
       }).join('')
-      : '<p class="footnote">没有匹配的卡。</p>';
+      : '<p class="footnote">没有匹配的卡。换个关键词，或者直接输卡号试试。</p>';
 
     $('cardPickList').querySelectorAll('[data-pick-card]').forEach((el) => {
       el.onclick = () => {
         cell.cardId = Number(el.dataset.pickCard);
-        cell.trained = 0;
+        cell.trained = $('cardTrained').checked ? 1 : 0;
         cell.score = Math.max(cell.score || 0, 0.99);
         cell.gap = 1;
         cell.ignored = false;          // 手动指定等于明确要它，顺手取消忽略
@@ -979,12 +1034,14 @@ function pickCardManually(si, ci) {
         renderResults();
         renderPreview();
         closeLightbox();
-        log(`第 ${ci + 1} 格手动指定为卡 ${el.dataset.pickCard}`, 'ok');
+        log(`第 ${ci + 1} 格手动指定为卡 ${el.dataset.pickCard}` +
+            `${cell.trained ? '（特训后）' : ''}`, 'ok');
       };
     });
   };
   render();
   $('cardSearch').oninput = render;
+  $('cardSearch').focus();
 }
 
 /** 看某一格的卡面详情（两张对照图 + 卡名属性 + 卡面页）。

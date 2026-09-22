@@ -93,12 +93,54 @@ echo
 # ---- 同步网页资源 -----------------------------------------------------
 
 cd "$REPO"
-if [ -d node_modules/@capacitor/cli ]; then
-  echo "→ 同步网页资源进安卓工程（cap sync）"
-  npx cap sync android
-else
-  echo "! 没装 npm 依赖，跳过 cap sync（先跑 npm install）"
-fi
+DEST="android/app/src/main/assets/public"
+
+# `cap sync` 会先把 assets/public 整个删掉再拷。本机有 safe-delete 守卫
+# （单次删除超过 50 个文件就拦），docs/ 下几千个 webp 必然触发：
+#
+#     [safe-delete][SAFE_DELETE_BULK_CONFIRM_REQUIRED] {"count":10813,...}
+#
+# 所以：先试 cap sync，被拦就退回「直接覆盖拷贝」——docs/ 只增不删，
+# 覆盖效果和 sync 等价，而且不会误删 cap 注入的 cordova.js 之类。
+sync_assets() {
+  if [ -d node_modules/@capacitor/cli ]; then
+    echo "→ 同步网页资源进安卓工程（cap sync）"
+    local log
+    log="$(mktemp)"
+    npx cap sync android >"$log" 2>&1 || true
+    tail -20 "$log"
+    # 注意：管道里 tail 的退出码永远是 0，所以只能看日志内容，不能看 $?
+    if ! grep -q "SAFE_DELETE_BULK_CONFIRM_REQUIRED\|copy android - failed" "$log"; then
+      rm -f "$log"
+      return 0
+    fi
+    rm -f "$log"
+    echo
+    echo "! cap sync 被 safe-delete 守卫拦下，退回覆盖拷贝"
+  else
+    echo "! 没装 npm 依赖，跳过 cap sync（先跑 npm install）"
+  fi
+
+  if [ ! -d "$DEST" ]; then
+    echo "✗ 目标目录不存在：$DEST" >&2
+    exit 1
+  fi
+  cp -rf docs/. "$DEST/"
+  local bad=0
+  for f in app.js style.css index.html; do
+    if ! cmp -s "docs/$f" "$DEST/$f"; then
+      echo "  ✗ $f 与源文件不一致" >&2
+      bad=1
+    fi
+  done
+  if [ "$bad" = "0" ]; then
+    echo "  ✓ 覆盖拷贝完成，关键文件与 docs/ 一致"
+  else
+    exit 1
+  fi
+}
+
+sync_assets
 
 if [ "${1:-}" = "sync" ]; then
   echo "只做同步，结束。"

@@ -1,0 +1,103 @@
+<Slide style={{ width: 1280, height: 720, padding: '20px 72px', background: '#F7F8FA', flexDirection: 'column' }}>
+
+    {/* ===== A · 标题块 ===== */}
+    <Box style={{ height: 100, flexDirection: 'row', alignItems: 'center', gap: 16 }}>
+        <Box style={{ width: 6, height: 38, background: '#E8478B', borderRadius: 3 }} />
+        <Text style={{ fontSize: 36, fontWeight: 'bold', color: '#1F2430' }}>
+            方式一 · 安卓 App 一键同步
+        </Text>
+        <Box style={{
+            background: 'rgba(232,71,139,0.12)', borderRadius: 20, padding: '5px 14px',
+        }}>
+            <Text style={{ fontSize: 16, color: '#E8478B', fontWeight: 'bold' }}>最省事</Text>
+        </Box>
+    </Box>
+
+    {/* ===== B · 内容区（60:40）===== */}
+    <Box style={{ flex: 1, flexDirection: 'row', gap: 32 }}>
+
+        {/* 左 60%：四步 */}
+        <Box style={{ width: 686, flexDirection: 'column', gap: 12 }}>
+
+            <Box style={{
+                background: '#FFFFFF', borderRadius: 12, padding: '15px 24px',
+                flexDirection: 'row', alignItems: 'center', gap: 20,
+                borderLeft: '4px solid #E8478B',
+                boxShadow: '0 2px 12px rgba(31,36,48,0.06)',
+            }}>
+                <Text style={{ fontSize: 26, fontWeight: 'bold', color: '#E8478B', width: 40 }}>1</Text>
+                <Box style={{ flex: 1, flexDirection: 'column', gap: 3 }}>
+                    <Text style={{ fontSize: 20, fontWeight: 'bold', color: '#1F2430' }}>登录 Bestdori</Text>
+                    <Text style={{ fontSize: 16, color: '#5A6376' }}>填账号密码，会话存在手机上，下次不用再登</Text>
+                </Box>
+            </Box>
+
+            <Box style={{
+                background: '#FFFFFF', borderRadius: 12, padding: '15px 24px',
+                flexDirection: 'row', alignItems: 'center', gap: 20,
+                borderLeft: '4px solid #E8478B',
+                boxShadow: '0 2px 12px rgba(31,36,48,0.06)',
+            }}>
+                <Text style={{ fontSize: 26, fontWeight: 'bold', color: '#E8478B', width: 40 }}>2</Text>
+                <Box style={{ flex: 1, flexDirection: 'column', gap: 3 }}>
+                    <Text style={{ fontSize: 20, fontWeight: 'bold', color: '#1F2430' }}>选一份云端档案</Text>
+                    <Text style={{ fontSize: 16, color: '#5A6376' }}>就是你 Bestdori 上那份「我的卡牌」</Text>
+                </Box>
+            </Box>
+
+            <Box style={{
+                background: '#FFFFFF', borderRadius: 12, padding: '15px 24px',
+                flexDirection: 'row', alignItems: 'center', gap: 20,
+                borderLeft: '4px solid #E8478B',
+                boxShadow: '0 2px 12px rgba(31,36,48,0.06)',
+            }}>
+                <Text style={{ fontSize: 26, fontWeight: 'bold', color: '#E8478B', width: 40 }}>3</Text>
+                <Box style={{ flex: 1, flexDirection: 'column', gap: 3 }}>
+                    <Text style={{ fontSize: 20, fontWeight: 'bold', color: '#1F2430' }}>先「生成导入计划」</Text>
+                    <Text style={{ fontSize: 16, color: '#5A6376' }}>告诉你新增多少、升级多少、跳过多少 —— 先看清再动手</Text>
+                </Box>
+            </Box>
+
+            <Box style={{
+                background: 'rgba(232,71,139,0.07)', borderRadius: 12, padding: '15px 24px',
+                flexDirection: 'row', alignItems: 'center', gap: 20,
+                borderLeft: '4px solid #E8478B',
+            }}>
+                <Text style={{ fontSize: 26, fontWeight: 'bold', color: '#E8478B', width: 40 }}>4</Text>
+                <Box style={{ flex: 1, flexDirection: 'column', gap: 3 }}>
+                    <Text style={{ fontSize: 20, fontWeight: 'bold', color: '#1F2430' }}>点「开始导入」</Text>
+                    <Text style={{ fontSize: 16, color: '#5A6376' }}>会弹确认框，不会不打招呼就改你的卡册</Text>
+                </Box>
+            </Box>
+
+        </Box>
+
+        {/* 右 40%：截图 —— 2.92:1，固定 148 高 */}
+        <Box style={{ flex: 1, flexDirection: 'column', gap: 14 }}>
+            <Box style={{
+                width: '100%', height: 148, borderRadius: 12, overflow: 'hidden',
+                background: '#1F2430', border: '1px solid #2E3442',
+                boxShadow: '0 6px 24px rgba(31,36,48,0.18)',
+            }}>
+                <Image src="assets/sync_app.png" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+            </Box>
+            <Box style={{
+                background: '#1F2430', borderRadius: 12, padding: '14px 20px',
+                flexDirection: 'row', alignItems: 'center', gap: 12,
+            }}>
+                <Box style={{ width: 5, height: 26, background: '#E8478B', borderRadius: 3 }} />
+                <Text style={{ fontSize: 16, color: '#FFFFFF', lineHeight: 1.5 }}>
+                    只有 App 能直连 Bestdori，网页做不到
+                </Text>
+            </Box>
+        </Box>
+
+    </Box>
+
+    {/* ===== C · 页脚条 ===== */}
+    <Box style={{ height: 60, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+        <Text style={{ fontSize: 15, color: '#8A93A6' }}>BestdoriHelper 使用说明</Text>
+        <Text style={{ fontSize: 15, color: '#8A93A6' }}>11 / 14</Text>
+    </Box>
+
+</Slide>

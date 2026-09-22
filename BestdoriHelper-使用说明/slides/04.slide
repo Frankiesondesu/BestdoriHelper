@@ -1,0 +1,128 @@
+<Slide style={{ width: 1280, height: 720, padding: '20px 72px', background: '#F7F8FA', flexDirection: 'column' }}>
+
+    {/* ===== A · 标题块 ===== */}
+    <Box style={{ height: 100, flexDirection: 'row', alignItems: 'center', gap: 16 }}>
+        <Box style={{ width: 6, height: 38, background: '#E8478B', borderRadius: 3 }} />
+        <Text style={{ fontSize: 36, fontWeight: 'bold', color: '#1F2430' }}>
+            三个版本，怎么选
+        </Text>
+    </Box>
+
+    {/* ===== B · 内容区（65:35）===== */}
+    <Box style={{ flex: 1, flexDirection: 'row', gap: 34 }}>
+
+        {/* 左 65%：三端说明 */}
+        <Box style={{ width: 715, flexDirection: 'column', gap: 14 }}>
+
+            {/* 网页版 */}
+            <Box style={{
+                background: '#FFFFFF', borderRadius: 12, padding: '20px 26px',
+                flexDirection: 'column', gap: 5,
+                borderLeft: '4px solid #D5DAE4',
+                boxShadow: '0 2px 12px rgba(31,36,48,0.06)',
+            }}>
+                <Box style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+                    <Text style={{ fontSize: 25, fontWeight: 'bold', color: '#1F2430' }}>网页版</Text>
+                    <Text style={{ fontSize: 15, color: '#8A93A6' }}>免安装</Text>
+                </Box>
+                <Text style={{ fontSize: 18, color: '#5A6376', lineHeight: 1.55 }}>
+                    打开网址就能用，适合快速识别完导出清单。
+                </Text>
+            </Box>
+
+            {/* 安卓 App：强调（唯一能在手机上直接同步的） */}
+            <Box style={{
+                background: 'rgba(232,71,139,0.07)', borderRadius: 12, padding: '20px 26px',
+                flexDirection: 'column', gap: 5,
+                borderLeft: '4px solid #E8478B',
+                boxShadow: '0 2px 12px rgba(232,71,139,0.10)',
+            }}>
+                <Box style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+                    <Text style={{ fontSize: 25, fontWeight: 'bold', color: '#1F2430' }}>安卓 App</Text>
+                    <Text style={{ fontSize: 15, color: '#E8478B', fontWeight: 'bold' }}>想同步就选它</Text>
+                </Box>
+                <Text style={{ fontSize: 18, color: '#5A6376', lineHeight: 1.55 }}>
+                    手机上直接把清单写进 Bestdori 的「我的卡牌」，一键完成。
+                </Text>
+            </Box>
+
+            {/* 桌面版 */}
+            <Box style={{
+                background: '#FFFFFF', borderRadius: 12, padding: '20px 26px',
+                flexDirection: 'column', gap: 5,
+                borderLeft: '4px solid #D5DAE4',
+                boxShadow: '0 2px 12px rgba(31,36,48,0.06)',
+            }}>
+                <Box style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+                    <Text style={{ fontSize: 25, fontWeight: 'bold', color: '#1F2430' }}>Windows 桌面版</Text>
+                    <Text style={{ fontSize: 15, color: '#8A93A6' }}>功能最全</Text>
+                </Box>
+                <Text style={{ fontSize: 18, color: '#5A6376', lineHeight: 1.55 }}>
+                    在电脑上用，界面最完整，适合批量整理。
+                </Text>
+            </Box>
+
+            {/* 结论条 */}
+            <Box style={{
+                marginTop: 'auto', background: '#1F2430', borderRadius: 12,
+                padding: '16px 26px', flexDirection: 'row', alignItems: 'center', gap: 14,
+            }}>
+                <Box style={{ width: 5, height: 30, background: '#E8478B', borderRadius: 3 }} />
+                <Text style={{ fontSize: 19, color: '#FFFFFF', lineHeight: 1.5 }}>
+                    先想清楚要不要同步：要同步选安卓，图省事选网页，要功能全选桌面
+                </Text>
+            </Box>
+
+        </Box>
+
+        {/* 右 35%：三端示意 */}
+        <Box style={{
+            flex: 1, background: '#FFFFFF', borderRadius: 12,
+            padding: '22px 18px', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+            gap: 16, boxShadow: '0 2px 12px rgba(31,36,48,0.06)',
+        }}>
+            <svg width={330} height={330} viewBox='0 0 330 330'>
+                {/* 浏览器窗口 */}
+                <rect x='26' y='34' width='150' height='104' rx='8' fill='#F2F4F8' stroke='#C8CEDA' strokeWidth='2' />
+                <rect x='26' y='34' width='150' height='20' rx='8' fill='#C8CEDA' />
+                <circle cx='41' cy='44' r='3' fill='#8A93A6' />
+                <circle cx='52' cy='44' r='3' fill='#8A93A6' />
+                <circle cx='63' cy='44' r='3' fill='#8A93A6' />
+                <g fill='#D5DAE4'>
+                    <rect x='40' y='68' width='52' height='46' rx='4' />
+                    <rect x='102' y='68' width='52' height='46' rx='4' />
+                </g>
+                <text x='101' y='164' fontSize='15' fill='#5A6376' textAnchor='middle'>网页</text>
+
+                {/* 手机（强调：能同步） */}
+                <rect x='200' y='26' width='98' height='170' rx='14' fill='#FFFFFF' stroke='#E8478B' strokeWidth='3' />
+                <rect x='212' y='44' width='74' height='126' rx='6' fill='#1F2430' />
+                <rect x='222' y='56' width='54' height='30' rx='3' fill='#E8478B' fillOpacity='0.55' />
+                <rect x='222' y='94' width='54' height='30' rx='3' fill='#3A4354' />
+                <rect x='222' y='132' width='54' height='26' rx='3' fill='#3A4354' />
+                <rect x='236' y='182' width='26' height='7' rx='3.5' fill='#C8CEDA' />
+                <text x='249' y='222' fontSize='15' fill='#E8478B' fontWeight='bold' textAnchor='middle'>安卓</text>
+
+                {/* 桌面窗口 */}
+                <rect x='52' y='240' width='196' height='62' rx='8' fill='#F2F4F8' stroke='#C8CEDA' strokeWidth='2' />
+                <rect x='66' y='256' width='74' height='30' rx='4' fill='#D5DAE4' />
+                <rect x='150' y='256' width='84' height='30' rx='4' fill='#D5DAE4' />
+                <text x='150' y='322' fontSize='15' fill='#5A6376' textAnchor='middle'>Windows</text>
+            </svg>
+
+            <Text style={{ fontSize: 15, color: '#8A93A6', textAlign: 'center', lineHeight: 1.5 }}>
+                三个平台共用同一套识别
+                <br />
+                结果和清单格式，界面不同而已
+            </Text>
+        </Box>
+
+    </Box>
+
+    {/* ===== C · 页脚条 ===== */}
+    <Box style={{ height: 60, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+        <Text style={{ fontSize: 15, color: '#8A93A6' }}>BestdoriHelper 使用说明</Text>
+        <Text style={{ fontSize: 15, color: '#8A93A6' }}>04 / 14</Text>
+    </Box>
+
+</Slide>

@@ -1,0 +1,114 @@
+<Slide style={{ width: 1280, height: 720, padding: '20px 72px', background: '#F7F8FA', flexDirection: 'column' }}>
+
+    {/* ===== A · 标题块 ===== */}
+    <Box style={{ height: 100, flexDirection: 'row', alignItems: 'center', gap: 16 }}>
+        <Box style={{ width: 6, height: 38, background: '#E8478B', borderRadius: 3 }} />
+        <Text style={{ fontSize: 36, fontWeight: 'bold', color: '#1F2430' }}>
+            方式二 · 网页版导出档案导入
+        </Text>
+    </Box>
+
+    {/* ===== B · 内容区（左标题栏 32% + 右内容）===== */}
+    <Box style={{ flex: 1, flexDirection: 'row' }}>
+
+        {/* 左：深色标题栏 */}
+        <Box style={{
+            width: 360, background: 'linear-gradient(135deg, #1F2430 0%, #2C3444 100%)',
+            borderRadius: '12px 0 0 12px', padding: '36px 32px',
+            flexDirection: 'column', justifyContent: 'space-between',
+        }}>
+            <Box style={{ flexDirection: 'column', gap: 14 }}>
+                <Text style={{ fontSize: 72, fontWeight: 'bold', color: '#E8478B', lineHeight: 1.0 }}>2</Text>
+                <Text style={{ fontSize: 29, fontWeight: 'bold', color: '#FFFFFF', lineHeight: 1.25 }}>
+                    借用官网
+                    <br />
+                    自己的导入入口
+                </Text>
+                <Box style={{ width: 44, height: 4, background: '#E8478B', borderRadius: 2 }} />
+                <Text style={{ fontSize: 18, color: '#8A93A6', lineHeight: 1.6 }}>
+                    网页版没法直连 Bestdori，
+                    <br />
+                    但官网本来就支持粘贴导入
+                </Text>
+            </Box>
+            <Box style={{
+                background: 'rgba(255,255,255,0.06)', borderRadius: 10, padding: '13px 16px',
+            }}>
+                <Text style={{ fontSize: 16, color: '#C9CEDA', lineHeight: 1.55 }}>
+                    账号密码不经过任何第三方
+                </Text>
+            </Box>
+        </Box>
+
+        {/* 右：步骤 + 截图 */}
+        <Box style={{
+            flex: 1, background: '#FFFFFF', borderRadius: '0 12px 12px 0',
+            padding: '24px 30px', flexDirection: 'column', gap: 16,
+            boxShadow: '0 2px 12px rgba(31,36,48,0.06)',
+        }}>
+
+            {/* 四步 */}
+            <Box style={{ flexDirection: 'row', gap: 10, alignItems: 'stretch' }}>
+                <Box style={{
+                    flex: 1, background: '#F7F8FA', borderRadius: 10, padding: '13px 14px',
+                    flexDirection: 'column', gap: 4, borderTop: '3px solid #E8478B',
+                }}>
+                    <Text style={{ fontSize: 15, color: '#E8478B', fontWeight: 'bold' }}>①</Text>
+                    <Text style={{ fontSize: 17, fontWeight: 'bold', color: '#1F2430' }}>导出档案</Text>
+                    <Text style={{ fontSize: 14, color: '#5A6376', lineHeight: 1.45 }}>
+                        清单页点「导出 Bestdori 档案」
+                    </Text>
+                </Box>
+
+                <Box style={{
+                    flex: 1, background: '#F7F8FA', borderRadius: 10, padding: '13px 14px',
+                    flexDirection: 'column', gap: 4, borderTop: '3px solid #E8478B',
+                }}>
+                    <Text style={{ fontSize: 15, color: '#E8478B', fontWeight: 'bold' }}>②</Text>
+                    <Text style={{ fontSize: 17, fontWeight: 'bold', color: '#1F2430' }}>复制</Text>
+                    <Text style={{ fontSize: 14, color: '#5A6376', lineHeight: 1.45 }}>
+                        把弹出来的内容整段复制
+                    </Text>
+                </Box>
+
+                <Box style={{
+                    flex: 1, background: '#F7F8FA', borderRadius: 10, padding: '13px 14px',
+                    flexDirection: 'column', gap: 4, borderTop: '3px solid #E8478B',
+                }}>
+                    <Text style={{ fontSize: 15, color: '#E8478B', fontWeight: 'bold' }}>③</Text>
+                    <Text style={{ fontSize: 17, fontWeight: 'bold', color: '#1F2430' }}>打开官网</Text>
+                    <Text style={{ fontSize: 14, color: '#5A6376', lineHeight: 1.45 }}>
+                        bestdori.com/profile/manager
+                    </Text>
+                </Box>
+
+                <Box style={{
+                    flex: 1, background: '#F7F8FA', borderRadius: 10, padding: '13px 14px',
+                    flexDirection: 'column', gap: 4, borderTop: '3px solid #E8478B',
+                }}>
+                    <Text style={{ fontSize: 15, color: '#E8478B', fontWeight: 'bold' }}>④</Text>
+                    <Text style={{ fontSize: 17, fontWeight: 'bold', color: '#1F2430' }}>Import 粘贴</Text>
+                    <Text style={{ fontSize: 14, color: '#5A6376', lineHeight: 1.45 }}>
+                        点 Import，粘进去，完成
+                    </Text>
+                </Box>
+            </Box>
+
+            {/* 截图 —— 5.20:1 超宽条，固定 146 高 */}
+            <Box style={{
+                width: '100%', height: 146, borderRadius: 10, overflow: 'hidden',
+                background: '#1F2430', border: '1px solid #2E3442',
+            }}>
+                <Image src="assets/sync_web.png" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+            </Box>
+
+        </Box>
+    </Box>
+
+    {/* ===== C · 页脚条 ===== */}
+    <Box style={{ height: 60, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+        <Text style={{ fontSize: 15, color: '#8A93A6' }}>BestdoriHelper 使用说明</Text>
+        <Text style={{ fontSize: 15, color: '#8A93A6' }}>12 / 14</Text>
+    </Box>
+
+</Slide>

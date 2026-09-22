@@ -253,7 +253,13 @@ class StatCard(QFrame):
 
 
 class CardPickerDialog(QDialog):
-    """在卡池里手动挑一张卡（识别失败时的兜底）。"""
+    """在卡池里手动挑一张卡（识别失败 / 候选都不对时的兜底）。
+
+    两条快路径：按卡名/角色/乐队搜，或直接输卡号（纯数字会精确命中并自动选中）。
+    卡号 = Bestdori 卡面详情页网址 ``bestdori.com/info/cards/1858`` 最后那个数字。
+    """
+
+    MAX_SHOWN = 400
 
     def __init__(self, catalog: Catalog, parent=None, initial: str = "") -> None:
         super().__init__(parent)
@@ -261,20 +267,33 @@ class CardPickerDialog(QDialog):
         self.chosen: tuple[int, bool] | None = None
 
         self.setWindowTitle("手动指定卡牌")
-        self.resize(560, 520)
+        self.resize(560, 560)
         lay = QVBoxLayout(self)
         lay.setContentsMargins(14, 14, 14, 14)
         lay.setSpacing(9)
 
         self.search = QLineEdit(initial)
-        self.search.setPlaceholderText("输入卡名 / 角色名 / 乐队 / 卡牌 ID，留空显示全部")
+        self.search.setPlaceholderText("卡名 / 角色名 / 乐队 / 卡号，留空显示全部")
+        self.search.setClearButtonEnabled(True)
         lay.addWidget(self.search)
+
+        self.count = QLabel("")
+        self.count.setObjectName("Hint")
+        lay.addWidget(self.count)
 
         self.trained = QCheckBox("以「特训后」形态登记")
         lay.addWidget(self.trained)
 
         self.list = QListWidget()
         lay.addWidget(self.list, 1)
+
+        hint = QLabel(
+            "不知道卡名？直接输卡号更快 —— 卡号就是 Bestdori 卡面详情页网址 "
+            "bestdori.com/info/cards/1858 里最后那个数字，回车即选中。"
+        )
+        hint.setObjectName("Hint")
+        hint.setWordWrap(True)
+        lay.addWidget(hint)
 
         buttons = QDialogButtonBox(
             QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel
@@ -284,14 +303,23 @@ class CardPickerDialog(QDialog):
         lay.addWidget(buttons)
 
         self.search.textChanged.connect(self._refill)
+        self.search.returnPressed.connect(self._accept_exact)
         self.list.itemDoubleClicked.connect(lambda _i: self._accept())
         self._refill()
 
     def _refill(self) -> None:
-        q = self.search.text().strip().lower()
+        raw = self.search.text().strip()
+        q = raw.lower()
+        exact = int(raw) if raw.isdigit() else None
+
+        cards = sorted(self.catalog.cards.values(), key=lambda c: -c.id)
+        # 纯数字输入：精确命中的那张提到最前，免得被别的卡的模糊匹配顶掉
+        if exact is not None and exact in self.catalog.cards:
+            cards = [self.catalog.cards[exact]] + [c for c in cards if c.id != exact]
+
         self.list.clear()
         shown = 0
-        for card in sorted(self.catalog.cards.values(), key=lambda c: -c.id):
+        for card in cards:
             info = self.catalog.describe(card.id, False)
             hay = f"{info['title']} {info['character']} {info['band']} {card.id}".lower()
             if q and q not in hay:
@@ -305,8 +333,30 @@ class CardPickerDialog(QDialog):
             item.setData(Qt.ItemDataRole.UserRole, card.id)
             self.list.addItem(item)
             shown += 1
-            if shown >= 400:
+            if shown >= self.MAX_SHOWN:
                 break
+
+        if not shown:
+            self.count.setText("没有匹配的卡 —— 换个关键词，或者直接输卡号")
+            return
+
+        self.count.setText(
+            f"匹配 {shown} 张" + ("（只显示前 400，再输几个字缩小范围）"
+                                if shown >= self.MAX_SHOWN else "")
+        )
+        # 卡号精确命中时直接选中它，回车/双击一步到位
+        if exact is not None and exact in self.catalog.cards:
+            self.list.setCurrentRow(0)
+
+    def _accept_exact(self) -> None:
+        """回车：列表里已选中就用它，否则把输入当卡号试一次。"""
+        if self.list.currentItem() is not None:
+            self._accept()
+            return
+        raw = self.search.text().strip().lstrip("#")
+        if raw.isdigit() and int(raw) in self.catalog.cards:
+            self.chosen = (int(raw), self.trained.isChecked())
+            self.accept()
 
     def _accept(self) -> None:
         item = self.list.currentItem()

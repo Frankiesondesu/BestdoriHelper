@@ -1,0 +1,70 @@
+<Slide style={{ width: 1280, height: 720, padding: '20px 72px', background: '#F7F8FA', flexDirection: 'column' }}>
+
+    {/* ===== A · 标题块 ===== */}
+    <Box style={{ height: 100, flexDirection: 'row', alignItems: 'center', gap: 16 }}>
+        <Box style={{ width: 6, height: 38, background: '#E8478B', borderRadius: 3 }} />
+        <Text style={{ fontSize: 36, fontWeight: 'bold', color: '#1F2430' }}>
+            第二步 · 核对与修正
+        </Text>
+        <Text style={{ fontSize: 19, color: '#8A93A6' }}>这步决定最终准不准</Text>
+    </Box>
+
+    {/* ===== B · 内容区（上大图 60% + 下方卡片）===== */}
+    <Box style={{ flex: 1, flexDirection: 'column', gap: 14 }}>
+
+        {/* 上：对照截图（0.98:1 ≈ 正方形，居中） */}
+        <Box style={{
+            width: 400, height: 400, alignSelf: 'center',
+            borderRadius: 12, overflow: 'hidden',
+            background: '#1F2430', border: '1px solid #2E3442',
+            boxShadow: '0 6px 24px rgba(31,36,48,0.18)',
+        }}>
+            <Image src="assets/step2_compare.png" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+        </Box>
+
+        {/* 下：三张操作卡 */}
+        <Box style={{ flex: 1, flexDirection: 'row', gap: 14 }}>
+
+            <Box style={{
+                flex: 1, background: '#FFFFFF', borderRadius: 12, padding: '16px 20px',
+                flexDirection: 'column', gap: 6, borderLeft: '4px solid #E8478B',
+                boxShadow: '0 2px 12px rgba(31,36,48,0.06)',
+            }}>
+                <Text style={{ fontSize: 20, fontWeight: 'bold', color: '#1F2430' }}>左右并排，一眼看对不对</Text>
+                <Text style={{ fontSize: 16, color: '#5A6376', lineHeight: 1.55 }}>
+                    每行左边是截图里那一格，右边是匹配到的卡图。两张长得不一样就是认错了。
+                </Text>
+            </Box>
+
+            <Box style={{
+                flex: 1, background: '#FFFFFF', borderRadius: 12, padding: '16px 20px',
+                flexDirection: 'column', gap: 6, borderLeft: '4px solid #D5DAE4',
+                boxShadow: '0 2px 12px rgba(31,36,48,0.06)',
+            }}>
+                <Text style={{ fontSize: 20, fontWeight: 'bold', color: '#1F2430' }}>都不是？搜卡面或输卡号</Text>
+                <Text style={{ fontSize: 16, color: '#5A6376', lineHeight: 1.55 }}>
+                    点候选卡片直接换；三张都不是，搜全卡池或直接输卡号。
+                </Text>
+            </Box>
+
+            <Box style={{
+                flex: 1, background: '#FFFFFF', borderRadius: 12, padding: '16px 20px',
+                flexDirection: 'column', gap: 6, borderLeft: '4px solid #D5DAE4',
+                boxShadow: '0 2px 12px rgba(31,36,48,0.06)',
+            }}>
+                <Text style={{ fontSize: 20, fontWeight: 'bold', color: '#1F2430' }}>拿不准就忽略这一格</Text>
+                <Text style={{ fontSize: 16, color: '#5A6376', lineHeight: 1.55 }}>
+                    点缩略图能看大图。确实认不出来的格子直接忽略，不会污染清单。
+                </Text>
+            </Box>
+
+        </Box>
+    </Box>
+
+    {/* ===== C · 页脚条 ===== */}
+    <Box style={{ height: 60, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+        <Text style={{ fontSize: 15, color: '#8A93A6' }}>BestdoriHelper 使用说明</Text>
+        <Text style={{ fontSize: 15, color: '#8A93A6' }}>07 / 14</Text>
+    </Box>
+
+</Slide>

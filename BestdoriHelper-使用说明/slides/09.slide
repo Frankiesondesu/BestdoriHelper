@@ -1,0 +1,96 @@
+<Slide style={{ width: 1280, height: 720, padding: '20px 72px', background: '#F7F8FA', flexDirection: 'column' }}>
+
+    {/* ===== A · 标题块 ===== */}
+    <Box style={{ height: 100, flexDirection: 'row', alignItems: 'center', gap: 16 }}>
+        <Box style={{ width: 6, height: 38, background: '#E8478B', borderRadius: 3 }} />
+        <Text style={{ fontSize: 36, fontWeight: 'bold', color: '#1F2430' }}>
+            第四步 · 导出清单
+        </Text>
+    </Box>
+
+    {/* ===== B · 内容区（60:40）===== */}
+    <Box style={{ flex: 1, flexDirection: 'row', gap: 32 }}>
+
+        {/* 左 60%：四种格式 */}
+        <Box style={{ width: 686, flexDirection: 'column', gap: 12 }}>
+
+            <Box style={{
+                background: '#FFFFFF', borderRadius: 12, padding: '15px 24px',
+                flexDirection: 'row', alignItems: 'center', gap: 22,
+                borderLeft: '4px solid #E8478B',
+                boxShadow: '0 2px 12px rgba(31,36,48,0.06)',
+            }}>
+                <Text style={{ fontSize: 23, fontWeight: 'bold', color: '#1F2430', width: 130 }}>CSV</Text>
+                <Text style={{ fontSize: 18, color: '#5A6376' }}>给 Excel / 表格软件看，想再加工就用它</Text>
+            </Box>
+
+            <Box style={{
+                background: '#FFFFFF', borderRadius: 12, padding: '15px 24px',
+                flexDirection: 'row', alignItems: 'center', gap: 22,
+                borderLeft: '4px solid #D5DAE4',
+                boxShadow: '0 2px 12px rgba(31,36,48,0.06)',
+            }}>
+                <Text style={{ fontSize: 23, fontWeight: 'bold', color: '#1F2430', width: 130 }}>ID 列表</Text>
+                <Text style={{ fontSize: 18, color: '#5A6376' }}>一串卡号，方便扔给别的工具处理</Text>
+            </Box>
+
+            <Box style={{
+                background: '#FFFFFF', borderRadius: 12, padding: '15px 24px',
+                flexDirection: 'row', alignItems: 'center', gap: 22,
+                borderLeft: '4px solid #D5DAE4',
+                boxShadow: '0 2px 12px rgba(31,36,48,0.06)',
+            }}>
+                <Text style={{ fontSize: 23, fontWeight: 'bold', color: '#1F2430', width: 130 }}>Markdown</Text>
+                <Text style={{ fontSize: 18, color: '#5A6376' }}>排版好的表格，直接贴到群里分享</Text>
+            </Box>
+
+            <Box style={{
+                background: '#FFFFFF', borderRadius: 12, padding: '15px 24px',
+                flexDirection: 'row', alignItems: 'center', gap: 22,
+                borderLeft: '4px solid #D5DAE4',
+                boxShadow: '0 2px 12px rgba(31,36,48,0.06)',
+            }}>
+                <Text style={{ fontSize: 23, fontWeight: 'bold', color: '#1F2430', width: 130 }}>JSON</Text>
+                <Text style={{ fontSize: 18, color: '#5A6376' }}>完整数据，给会写脚本的人用</Text>
+            </Box>
+
+            {/* 引子：导完还能同步 */}
+            <Box style={{
+                marginTop: 'auto', background: '#1F2430', borderRadius: 12,
+                padding: '15px 24px', flexDirection: 'row', alignItems: 'center', gap: 14,
+            }}>
+                <Box style={{ width: 5, height: 30, background: '#E8478B', borderRadius: 3 }} />
+                <Text style={{ fontSize: 19, color: '#FFFFFF', lineHeight: 1.5 }}>
+                    导出只是中途站 —— 想写进 Bestdori 的，看下一章
+                </Text>
+            </Box>
+
+        </Box>
+
+        {/* 右 40%：导出区截图 */}
+        <Box style={{
+            flex: 1, flexDirection: 'column', gap: 14,
+        }}>
+            <Box style={{
+                width: '100%', height: 82, borderRadius: 12, overflow: 'hidden',
+                background: '#1F2430', border: '1px solid #2E3442',
+                boxShadow: '0 6px 24px rgba(31,36,48,0.18)',
+            }}>
+                <Image src="assets/step4_export.png" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+            </Box>
+            <Text style={{ fontSize: 16, color: '#8A93A6', lineHeight: 1.55, textAlign: 'center' }}>
+                导出按钮就在清单页，
+                <br />
+                按你下一步要拿它做什么来选格式
+            </Text>
+        </Box>
+
+    </Box>
+
+    {/* ===== C · 页脚条 ===== */}
+    <Box style={{ height: 60, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+        <Text style={{ fontSize: 15, color: '#8A93A6' }}>BestdoriHelper 使用说明</Text>
+        <Text style={{ fontSize: 15, color: '#8A93A6' }}>09 / 14</Text>
+    </Box>
+
+</Slide>

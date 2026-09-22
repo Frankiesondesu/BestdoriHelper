@@ -1,0 +1,94 @@
+<Slide style={{ width: 1280, height: 720, padding: '20px 72px', background: '#F7F8FA', flexDirection: 'column' }}>
+
+    {/* ===== A · 标题块 ===== */}
+    <Box style={{ height: 100, flexDirection: 'row', alignItems: 'center', gap: 16 }}>
+        <Box style={{ width: 6, height: 38, background: '#E8478B', borderRadius: 3 }} />
+        <Text style={{ fontSize: 36, fontWeight: 'bold', color: '#1F2430' }}>
+            四步走完
+        </Text>
+    </Box>
+
+    {/* ===== B · 内容区 ===== */}
+    <Box style={{ flex: 1, flexDirection: 'row', gap: 40, alignItems: 'center' }}>
+
+        {/* 左：巨型锚点数字 */}
+        <Box style={{ width: 330, flexDirection: 'column', alignItems: 'flex-start', gap: 10 }}>
+            <Text style={{ fontSize: 240, fontWeight: 'bold', color: '#E8478B', lineHeight: 0.92, letterSpacing: -6 }}>
+                4
+            </Text>
+            <Text style={{ fontSize: 40, fontWeight: 'bold', color: '#1F2430', lineHeight: 1.2 }}>
+                步走完全部流程
+            </Text>
+        </Box>
+
+        {/* 右：四步 + 洞察 */}
+        <Box style={{ flex: 1, flexDirection: 'column', gap: 18 }}>
+
+            {/* 四个步骤条 */}
+            <Box style={{ flexDirection: 'column', gap: 12 }}>
+                <Box style={{
+                    background: '#FFFFFF', borderRadius: 12, padding: '17px 26px',
+                    flexDirection: 'row', alignItems: 'center', gap: 20,
+                    borderLeft: '4px solid #E8478B',
+                    boxShadow: '0 2px 12px rgba(31,36,48,0.06)',
+                }}>
+                    <Text style={{ fontSize: 30, fontWeight: 'bold', color: '#E8478B', width: 46 }}>1</Text>
+                    <Text style={{ fontSize: 25, fontWeight: 'bold', color: '#1F2430', width: 168 }}>导入截图</Text>
+                    <Text style={{ fontSize: 19, color: '#5A6376' }}>把游戏里截的卡面列表图丢进来</Text>
+                </Box>
+
+                <Box style={{
+                    background: '#FFFFFF', borderRadius: 12, padding: '17px 26px',
+                    flexDirection: 'row', alignItems: 'center', gap: 20,
+                    borderLeft: '4px solid #E8478B',
+                    boxShadow: '0 2px 12px rgba(31,36,48,0.06)',
+                }}>
+                    <Text style={{ fontSize: 30, fontWeight: 'bold', color: '#E8478B', width: 46 }}>2</Text>
+                    <Text style={{ fontSize: 25, fontWeight: 'bold', color: '#1F2430', width: 168 }}>核对修正</Text>
+                    <Text style={{ fontSize: 19, color: '#5A6376' }}>扫一眼对照图，认错的手动改过来</Text>
+                </Box>
+
+                <Box style={{
+                    background: '#FFFFFF', borderRadius: 12, padding: '17px 26px',
+                    flexDirection: 'row', alignItems: 'center', gap: 20,
+                    borderLeft: '4px solid #E8478B',
+                    boxShadow: '0 2px 12px rgba(31,36,48,0.06)',
+                }}>
+                    <Text style={{ fontSize: 30, fontWeight: 'bold', color: '#E8478B', width: 46 }}>3</Text>
+                    <Text style={{ fontSize: 25, fontWeight: 'bold', color: '#1F2430', width: 168 }}>卡面清单</Text>
+                    <Text style={{ fontSize: 19, color: '#5A6376' }}>自动汇总统计，确认后就是你的卡册</Text>
+                </Box>
+
+                <Box style={{
+                    background: '#FFFFFF', borderRadius: 12, padding: '17px 26px',
+                    flexDirection: 'row', alignItems: 'center', gap: 20,
+                    borderLeft: '4px solid #E8478B',
+                    boxShadow: '0 2px 12px rgba(31,36,48,0.06)',
+                }}>
+                    <Text style={{ fontSize: 30, fontWeight: 'bold', color: '#E8478B', width: 46 }}>4</Text>
+                    <Text style={{ fontSize: 25, fontWeight: 'bold', color: '#1F2430', width: 168 }}>导出 / 同步</Text>
+                    <Text style={{ fontSize: 19, color: '#5A6376' }}>存成文件，或者直接写进 Bestdori</Text>
+                </Box>
+            </Box>
+
+            {/* 洞察 */}
+            <Box style={{
+                background: '#1F2430', borderRadius: 12, padding: '16px 26px',
+                flexDirection: 'row', alignItems: 'center', gap: 14,
+            }}>
+                <Box style={{ width: 5, height: 32, background: '#E8478B', borderRadius: 3 }} />
+                <Text style={{ fontSize: 20, color: '#FFFFFF', lineHeight: 1.5 }}>
+                    后面四页一步一步讲 —— 每一步你真正要做的，通常不超过两次点击
+                </Text>
+            </Box>
+
+        </Box>
+    </Box>
+
+    {/* ===== C · 页脚条 ===== */}
+    <Box style={{ height: 60, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+        <Text style={{ fontSize: 15, color: '#8A93A6' }}>BestdoriHelper 使用说明</Text>
+        <Text style={{ fontSize: 15, color: '#8A93A6' }}>05 / 14</Text>
+    </Box>
+
+</Slide>

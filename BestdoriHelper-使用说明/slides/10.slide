@@ -1,0 +1,61 @@
+<Slide style={{ width: 1280, height: 720, padding: 0, position: 'relative', overflow: 'hidden', background: '#1F2430' }}>
+
+    {/* ===== 背景 ===== */}
+    <Box style={{ position: 'absolute', top: 0, left: 0, width: 1280, height: 720 }}>
+        <svg width={1280} height={720} viewBox='0 0 1280 720'>
+            <defs>
+                <linearGradient id='s2bg' x1='0' y1='0' x2='1' y2='1'>
+                    <stop offset='0%' stopColor='#1B1F2A' />
+                    <stop offset='100%' stopColor='#2A3242' />
+                </linearGradient>
+                <radialGradient id='s2glow' cx='0.78' cy='0.62' r='0.68'>
+                    <stop offset='0%' stopColor='#E8478B' stopOpacity='0.32' />
+                    <stop offset='100%' stopColor='#E8478B' stopOpacity='0' />
+                </radialGradient>
+            </defs>
+            <rect x='0' y='0' width='1280' height='720' fill='url(#s2bg)' />
+            <rect x='0' y='0' width='1280' height='720' fill='url(#s2glow)' />
+
+            {/* 右侧：清单 → 云 的示意（抽象） */}
+            <g>
+                <rect x='905' y='196' width='86' height='112' rx='8' fill='#FFFFFF' fillOpacity='0.07' />
+                <rect x='1011' y='196' width='86' height='112' rx='8' fill='#FFFFFF' fillOpacity='0.05' />
+                <rect x='905' y='328' width='86' height='112' rx='8' fill='#FFFFFF' fillOpacity='0.04' />
+                <rect x='1011' y='328' width='86' height='112' rx='8' fill='#E8478B' fillOpacity='0.22' />
+
+                {/* 箭头指向云 */}
+                <path d='M1054 384 L1120 384' stroke='#E8478B' strokeOpacity='0.55' strokeWidth='3' strokeLinecap='round' />
+                <path d='M1108 372 L1122 384 L1108 396' fill='none' stroke='#E8478B' strokeOpacity='0.55' strokeWidth='3' strokeLinecap='round' strokeLinejoin='round' />
+
+                {/* 云 */}
+                <path d='M1148 402 a34 34 0 0 1 8 -67 a44 44 0 0 1 82 -4 a30 30 0 0 1 4 71 z'
+                    fill='#FFFFFF' fillOpacity='0.10' stroke='#E8478B' strokeOpacity='0.4' strokeWidth='2' />
+            </g>
+
+            {/* 左侧装饰弧 */}
+            <circle cx='1160' cy='690' r='180' fill='none' stroke='#FFFFFF' strokeOpacity='0.04' strokeWidth='1' />
+        </svg>
+    </Box>
+
+    {/* ===== 内容 ===== */}
+    <Box style={{
+        position: 'relative', zIndex: 1, height: '100%',
+        flexDirection: 'column', justifyContent: 'center',
+        paddingLeft: 96, paddingRight: 96, gap: 20,
+    }}>
+        <Text style={{ fontSize: 150, fontWeight: 'bold', color: '#E8478B', lineHeight: 1.0, letterSpacing: 2 }}>
+            02
+        </Text>
+
+        <Text style={{ fontSize: 64, fontWeight: 'bold', color: '#FFFFFF', lineHeight: 1.15 }}>
+            同步到 Bestdori
+        </Text>
+
+        <Box style={{ width: 68, height: 4, background: '#E8478B', borderRadius: 2, marginTop: 6 }} />
+
+        <Text style={{ fontSize: 22, color: '#8A93A6', marginTop: 6 }}>
+            两种方式，按你用的版本选
+        </Text>
+    </Box>
+
+</Slide>

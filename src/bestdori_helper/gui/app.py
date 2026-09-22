@@ -71,6 +71,7 @@ from .widgets import (
     StatCard,
     ThumbnailLoader,
     hline,
+    row,
     status_color,
     status_label,
 )
@@ -519,11 +520,13 @@ class MainWindow(QMainWindow):
         side.setObjectName("PanelScroll")
         side.setWidgetResizable(True)
         side.setFrameShape(QFrame.Shape.NoFrame)
-        # 最小宽度必须容得下"两张 140px 核对图 + 间距 + 内边距 + 垂直滚动条"：
-        # 140*2 + 8 + 24 + 11 = 323。早先写 322 —— 视口只剩 311px，而内容要
-        # 320px，右边那张图被裁掉一条，且水平滚动条被禁用，用户看到的就是
-        # "右边的图显示不全"。
-        side.setMinimumWidth(380)
+        # 最小宽度要容得下"两张 190px 核对图 + 间距 + 内边距 + 垂直滚动条"：
+        #   190*2 + 8 + 24 + 11 = 423  -> 取 424
+        # 这里原来写 380，注释还按 140px 的旧图算 —— 后来核对图放大到 190
+        # （140 看不清属性图标和星级），宽度没跟着改，于是长期有 23px 水平溢出：
+        # 面板底部多出一条横向滚动条，靠右的控件（如候选标题行右侧的「都不是？」）
+        # 被裁掉一截，看着像"按钮缺了一块"。
+        side.setMinimumWidth(424)
         side.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
 
         side_inner = QWidget()
@@ -581,21 +584,65 @@ class MainWindow(QMainWindow):
 
         sl.addWidget(hline())
 
+        # 候选标题行 —— 出口就挂在这一行右边。
+        # 为什么不放列表下方：这个面板是滚动容器，实测内容 893px / 视口 529px，
+        # 列表本身只露出 84px（约 2.8 项）。任何排在列表下面的按钮都会被滚出
+        # 可视区，用户根本看不到 —— 那就等于没有出口。塞进标题行零额外高度。
+        cand_head = QHBoxLayout()
+        cand_head.setSpacing(6)
         cand_hint = QLabel("候选（按「是不是同一张画」排序）")
         cand_hint.setObjectName("Hint")
-        sl.addWidget(cand_hint)
+        cand_head.addWidget(cand_hint)
+        cand_head.addStretch(1)
+        b_miss = QPushButton("都不是？搜卡面 ›")
+        b_miss.setObjectName("LinkBtn")
+        b_miss.setCursor(Qt.CursorShape.PointingHandCursor)
+        b_miss.setToolTip("三个候选都不对？搜全卡池自己指定，或直接输卡号")
+        b_miss.clicked.connect(self._pick_card_for_row)
+        cand_head.addWidget(b_miss)
+        # 留个引用给回归测试：这个按钮必须在侧栏可视区内，不能被挤出屏幕
+        self.b_miss = b_miss
+        sl.addLayout(cand_head)
 
         self.cand_list = QListWidget()
+        # 候选列表**不能给 stretch**。这个面板在 QScrollArea 里，stretch=1 会让
+        # 列表把布局撑满，下面的「应用选中候选」等按钮全被挤出可视区 ——
+        # 用户得先滚动才能看到，等于没有。给个够用又能滚的固定高度。
         self.cand_list.setMinimumHeight(96)
+        self.cand_list.setMaximumHeight(140)
+        # 横向必须"不要尺寸"：候选文字是「0.660　角色 · 卡名　[4★]」，
+        # 卡名一长，QListWidget 的 minimumSizeHint 就跟着变宽，把整个面板顶宽
+        # （实测顶到 626px，而视口只有 413px）—— 横向滚动条冒出来，右侧控件被裁。
+        # 让它在横向忽略自身内容宽度，长文本靠省略号。
+        self.cand_list.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Preferred)
+        self.cand_list.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self.cand_list.setTextElideMode(Qt.TextElideMode.ElideRight)
         self.cand_list.itemDoubleClicked.connect(lambda _i: self._apply_candidate())
-        sl.addWidget(self.cand_list, 1)
+        sl.addWidget(self.cand_list)
 
         b_apply = QPushButton("应用选中候选")
         b_apply.setObjectName("Primary")
         b_apply.clicked.connect(self._apply_candidate)
         sl.addWidget(b_apply)
 
-        b_pick = QPushButton("手动指定卡牌…")
+        # 候选都不对时的出口。识别只给排前面的几张，全都不对时必须有路可走。
+        # 列表最后一项是主入口（和候选同屏），这里再给一条更快的：知道卡号直接输。
+        cand_miss = QLabel("知道卡号？直接输，回车即改判：")
+        cand_miss.setObjectName("Hint")
+        sl.addWidget(cand_miss)
+
+        self.quick_id = QLineEdit()
+        self.quick_id.setPlaceholderText("直接输卡号，回车改判（如 1858）")
+        self.quick_id.setClearButtonEnabled(True)
+        self.quick_id.returnPressed.connect(self._quick_pick_by_id)
+        self.quick_trained = QCheckBox("特训后")
+        self.quick_trained.setToolTip("勾上则以「特训后」形态登记")
+        quick_box = QWidget()          # row() 返回的是布局，得套个容器才能 addWidget
+        quick_box.setLayout(row(self.quick_id, self.quick_trained, stretch_at=0))
+        sl.addWidget(quick_box)
+
+        b_pick = QPushButton("搜全卡池，手动指定卡牌…")
+        b_pick.setObjectName("Dashed")
         b_pick.clicked.connect(self._pick_card_for_row)
         sl.addWidget(b_pick)
 
@@ -630,7 +677,9 @@ class MainWindow(QMainWindow):
     def _make_cmp_label() -> ClickableLabel:
         """核对面板里并排的两张图（点击可放大）。"""
         lab = ClickableLabel()
-        lab.setFixedSize(140, 140)
+        # 140 见方时属性图标/星级已经糊了，放大到 190 才够核对；
+        # 再大就会把右侧面板撑开（面板宽度有限），所以不继续加。
+        lab.setFixedSize(190, 190)
         lab.setAlignment(Qt.AlignmentFlag.AlignCenter)
         lab.setCursor(Qt.CursorShape.PointingHandCursor)
         lab.setStyleSheet(
@@ -1499,6 +1548,41 @@ class MainWindow(QMainWindow):
         card_id, trained = li.data(Qt.ItemDataRole.UserRole)
         self._set_scan_item(cur[0], cur[1], card_id, trained, source="manual")
 
+    def _quick_pick_by_id(self) -> None:
+        """按卡号直接改判当前格（候选都不对时的最快路径）。
+
+        卡号 = Bestdori 卡面详情页网址 ``bestdori.com/info/cards/1858`` 最后那个数字。
+        """
+        cur = self._current_scan_item()
+        if cur is None:
+            QMessageBox.information(self, "先选一格", "在左边结果表里点一下要改判的那一格。")
+            return
+        raw = self.quick_id.text().strip().lstrip("#")
+        if not raw.isdigit():
+            QMessageBox.warning(self, "卡号不对", "卡号应该是纯数字，比如 1858。")
+            return
+
+        catalog = self.state.catalog_or_load(allow_network=False)
+        if catalog is None:
+            QMessageBox.warning(self, "卡池资料缺失", "请先同步卡牌资料。")
+            return
+
+        card_id = int(raw)
+        card = catalog.card(card_id)
+        if card is None:
+            QMessageBox.warning(
+                self, "没有这张卡",
+                f"卡池里找不到卡号 {card_id}。\n"
+                "确认一下数字有没有多输/少输，或者用下面的「搜全卡池」按卡名找。",
+            )
+            return
+
+        info = catalog.describe(card_id, False)
+        self._set_scan_item(cur[0], cur[1], card_id,
+                            self.quick_trained.isChecked(), source="manual")
+        self.quick_id.clear()
+        self._log(f"按卡号改判：{info['character']} · {info['title']} (#{card_id})")
+
     def _pick_card_for_row(self) -> None:
         cur = self._current_scan_item()
         if cur is None:
@@ -1548,6 +1632,22 @@ class MainWindow(QMainWindow):
 
         self._reload_result_table()
         self._reload_inventory_table()
+        self._reselect_scan_row(ri, ii)
+
+    def _reselect_scan_row(self, ri: int, ii: int) -> None:
+        """表格重建后把选中还原到刚改的那一格。
+
+        改判会整表重刷，不还原的话选中就丢了 —— 连改好几格时得反复点行，
+        而且「按卡号改判」的下一次回车会因为没选中而弹「先选一格」。
+        """
+        try:
+            row = self._scan_rows.index((ri, ii))
+        except ValueError:
+            return
+        self.result_table.selectRow(row)
+        item = self.result_table.item(row, 0)
+        if item is not None:
+            self.result_table.scrollToItem(item)
 
     def _ignore_row(self) -> None:
         cur = self._current_scan_item()

@@ -428,7 +428,7 @@ button.pane-btn {
 
 /* 卡牌详情内容 */
 .detail-imgs { display: flex; gap: 10px; justify-content: center; align-items: flex-start; }
-.detail-imgs figure { margin: 0; flex: 0 1 46%; min-width: 0; }
+.detail-imgs figure { margin: 0; flex: 0 1 auto; width: 190px; max-width: 46%; }
 .detail-imgs img { width: 100%; border-radius: 10px; background: var(--panel-2); }
 .detail-imgs figcaption {
   font-size: 11px; color: var(--text-faint); text-align: center; margin-top: 4px;
@@ -509,11 +509,16 @@ td.thumb { width: 1%; white-space: nowrap; }
 td.thumb img { width: 42px; height: 42px; border-radius: 6px; object-fit: cover; background: var(--panel-2); display: block; }
 
 /* 对照视图：左 = 截图里那一格，右 = 匹配到的 Bestdori 卡图 */
-.pair { display: flex; gap: 5px; align-items: center; }
-.pair img { width: 46px; height: 46px; border-radius: 6px; object-fit: cover; background: var(--panel-2); display: block; }
+.pair { display: flex; gap: 5px; align-items: center; flex: none; }
+/* 对照列要放得下两张 76px 的图（+ 间距 + 边框），否则表格会把它压扁 */
+td.thumb, th:first-child { min-width: 168px; }
+/* 必须写成 td.thumb .pair img：上面 td.thumb img 那条（清单页卡图列，42px）
+   特异性是 0,1,2，比 .pair img 的 0,1,1 高 —— 直接写 .pair img 会被它压住。
+   （这个坑踩过一次：实测 computed 一直是 42px。）*/
+td.thumb .pair img { width: 76px; height: 76px; border-radius: 8px; object-fit: cover; background: var(--panel-2); display: block; flex: none; }
 .pair .cellimg { border: 2px solid var(--border-2); }
 .pair .matchimg { border: 2px solid rgba(74, 222, 128, 0.45); }
-.pair .noimg { width: 46px; height: 46px; border-radius: 6px; background: var(--panel-2); border: 2px dashed var(--border-2); }
+td.thumb .pair .noimg { width: 76px; height: 76px; border-radius: 6px; background: var(--panel-2); border: 2px dashed var(--border-2); }
 
 .mono { font-variant-numeric: tabular-nums; }
 .score { font-weight: 600; }
@@ -552,6 +557,33 @@ td.thumb img { width: 42px; height: 42px; border-radius: 6px; object-fit: cover;
 .cand:hover { border-color: var(--accent); color: var(--text); }
 .cand img { width: 28px; height: 28px; border-radius: 5px; object-fit: cover; }
 .cand.cur { border-color: var(--accent); color: var(--text); }
+
+/* 候选行的出口：「都不对？搜卡面」
+   注意 button 有全局 min-height:44px，这里必须显式清掉，否则候选行会被撑高 */
+.cand-more {
+  min-height: 0; padding: 4px 10px;
+  border-style: dashed;
+  color: var(--text-faint);
+}
+.cand-more:hover { border-color: var(--accent); color: var(--accent); background: none; }
+
+/* 每行常驻的「改」—— 高置信度但认错时也得有路可走 */
+.cellops { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; }
+button.pill.fix {
+  min-height: 0; padding: 2px 7px; border-radius: 6px;
+  font-size: 11px; background: var(--panel-2); color: var(--text-faint);
+}
+button.pill.fix:hover { border-color: var(--accent); color: var(--accent); background: var(--panel-2); }
+
+/* 手动指定：特训开关 + 匹配计数 + 卡号精确命中 */
+.pick-trained {
+  display: flex; align-items: center; gap: 7px;
+  font-size: 12.5px; color: var(--text-dim); cursor: pointer;
+}
+.pick-trained input { width: 15px; height: 15px; min-height: 0; margin: 0; }
+.pick-count { font-size: 11.5px; color: var(--text-faint); }
+.pick-item.exact { border-color: var(--accent); }
+.pick-item.exact .pick-sub { color: var(--accent); font-weight: 600; }
 
 /* ===== 清单统计 ===== */
 .summary {

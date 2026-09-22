@@ -1,0 +1,72 @@
+<Slide style={{ width: 1280, height: 720, padding: '20px 72px', background: '#F7F8FA', flexDirection: 'column' }}>
+
+    {/* ===== A · 标题块 ===== */}
+    <Box style={{ height: 100, flexDirection: 'row', alignItems: 'center', gap: 16 }}>
+        <Box style={{ width: 6, height: 38, background: '#E8478B', borderRadius: 3 }} />
+        <Text style={{ fontSize: 36, fontWeight: 'bold', color: '#1F2430' }}>
+            第一步 · 导入截图
+        </Text>
+    </Box>
+
+    {/* ===== B · 内容区（左大图 58% + 右文字）===== */}
+    <Box style={{ flex: 1, flexDirection: 'row', gap: 32, alignItems: 'center' }}>
+
+        {/* 左：界面截图（比例 = 截图原 2.41:1） */}
+        <Box style={{
+            width: 600, height: 250, borderRadius: 12, overflow: 'hidden',
+            background: '#1F2430', border: '1px solid #2E3442',
+            boxShadow: '0 6px 24px rgba(31,36,48,0.18)',
+        }}>
+            <Image src="assets/step1_import.png" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+        </Box>
+
+        {/* 右：要点 */}
+        <Box style={{ flex: 1, flexDirection: 'column', gap: 16 }}>
+
+            <Box style={{
+                background: '#FFFFFF', borderRadius: 12, padding: '16px 22px',
+                flexDirection: 'column', gap: 4, borderLeft: '4px solid #E8478B',
+                boxShadow: '0 2px 12px rgba(31,36,48,0.06)',
+            }}>
+                <Text style={{ fontSize: 21, fontWeight: 'bold', color: '#1F2430' }}>拖进来，或者点一下选</Text>
+                <Text style={{ fontSize: 17, color: '#5A6376', lineHeight: 1.55 }}>
+                    可以一次选多张，也能直接选整个文件夹。<br />
+                    图片只在你本机处理，不会上传。
+                </Text>
+            </Box>
+
+            <Box style={{
+                background: '#FFFFFF', borderRadius: 12, padding: '16px 22px',
+                flexDirection: 'column', gap: 4, borderLeft: '4px solid #D5DAE4',
+                boxShadow: '0 2px 12px rgba(31,36,48,0.06)',
+            }}>
+                <Text style={{ fontSize: 21, fontWeight: 'bold', color: '#1F2430' }}>切分模式用「自动」</Text>
+                <Text style={{ fontSize: 17, color: '#5A6376', lineHeight: 1.55 }}>
+                    它会自己数出行数和列数。切得不准时再改成
+                    <br />
+                    「指定行列」，手动填行、列。
+                </Text>
+            </Box>
+
+            <Box style={{
+                background: 'rgba(232,71,139,0.07)', borderRadius: 12, padding: '16px 22px',
+                flexDirection: 'column', gap: 4, borderLeft: '4px solid #E8478B',
+            }}>
+                <Text style={{ fontSize: 21, fontWeight: 'bold', color: '#1F2430' }}>别忘了「卡框贴合」</Text>
+                <Text style={{ fontSize: 17, color: '#5A6376', lineHeight: 1.55 }}>
+                    默认开着。它让每一格收紧到真正的卡框上，
+                    <br />
+                    不会把旁边卡面的边切进来 —— 直接决定准不准。
+                </Text>
+            </Box>
+
+        </Box>
+    </Box>
+
+    {/* ===== C · 页脚条 ===== */}
+    <Box style={{ height: 60, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+        <Text style={{ fontSize: 15, color: '#8A93A6' }}>BestdoriHelper 使用说明</Text>
+        <Text style={{ fontSize: 15, color: '#8A93A6' }}>06 / 14</Text>
+    </Box>
+
+</Slide>

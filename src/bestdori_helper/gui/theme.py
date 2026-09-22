@@ -113,6 +113,22 @@ QPushButton#Primary:disabled { background: @accentDim@; border-color: @accentDim
 QPushButton#Danger { color: @danger@; border-color: #5a3336; }
 QPushButton#Danger:hover:enabled { background: #3a2427; }
 QPushButton#Ghost { background: transparent; border: 1px solid @border@; }
+/* 「候选都不对」的出口：虚线边框，一眼看出是兜底路径而不是主操作 */
+QPushButton#Dashed {
+    background: transparent;
+    border: 1px dashed @border2@;
+    color: @muted@;
+}
+QPushButton#Dashed:hover:enabled { border-color: @accent@; color: @accent@; }
+/* 行内文字按钮：用来把「出口」塞进标题行，不额外占高度。
+   Qt 的 QSS 对 text-decoration 支持不可靠，用颜色变化表达可点。 */
+QPushButton#LinkBtn {
+    background: transparent;
+    border: none;
+    padding: 0;
+    color: @accent@;
+}
+QPushButton#LinkBtn:hover:enabled { color: @accentHover@; }
 
 /* ---- 输入控件 ---- */
 QLineEdit, QSpinBox, QDoubleSpinBox, QComboBox, QPlainTextEdit, QTextEdit {

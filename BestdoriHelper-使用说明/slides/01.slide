@@ -1,0 +1,105 @@
+<Slide style={{ width: 1280, height: 720, padding: 0, position: 'relative', overflow: 'hidden', background: '#1F2430' }}>
+
+    {/* ===== 背景：抽象几何（深色科技氛围）===== */}
+    <Box style={{ position: 'absolute', top: 0, left: 0, width: 1280, height: 720 }}>
+        <svg width={1280} height={720} viewBox='0 0 1280 720'>
+            {/* 底色渐变 */}
+            <defs>
+                <linearGradient id='coverBg' x1='0' y1='0' x2='1' y2='1'>
+                    <stop offset='0%' stopColor='#1F2430' />
+                    <stop offset='55%' stopColor='#252B39' />
+                    <stop offset='100%' stopColor='#2C3444' />
+                </linearGradient>
+                <radialGradient id='glow' cx='0.78' cy='0.28' r='0.62'>
+                    <stop offset='0%' stopColor='#E8478B' stopOpacity='0.42' />
+                    <stop offset='55%' stopColor='#E8478B' stopOpacity='0.10' />
+                    <stop offset='100%' stopColor='#E8478B' stopOpacity='0' />
+                </radialGradient>
+                <linearGradient id='bar' x1='0' y1='0' x2='1' y2='0'>
+                    <stop offset='0%' stopColor='#E8478B' />
+                    <stop offset='100%' stopColor='#E8478B' stopOpacity='0.15' />
+                </linearGradient>
+            </defs>
+
+            <rect x='0' y='0' width='1280' height='720' fill='url(#coverBg)' />
+            <rect x='0' y='0' width='1280' height='720' fill='url(#glow)' />
+
+            {/* 网格线：暗示"逐格切分"这件事本身 */}
+            <g stroke='#FFFFFF' strokeOpacity='0.05' strokeWidth='1'>
+                <line x1='0' y1='180' x2='1280' y2='180' />
+                <line x1='0' y1='360' x2='1280' y2='360' />
+                <line x1='0' y1='540' x2='1280' y2='540' />
+                <line x1='320' y1='0' x2='320' y2='720' />
+                <line x1='640' y1='0' x2='640' y2='720' />
+                <line x1='960' y1='0' x2='960' y2='720' />
+            </g>
+
+            {/* 右侧卡面示意：几个圆角方块，呼应"卡" */}
+            <g opacity='0.9'>
+                <rect x='842' y='196' width='112' height='150' rx='10' fill='#E8478B' fillOpacity='0.55' />
+                <rect x='972' y='150' width='112' height='150' rx='10' fill='#FFFFFF' fillOpacity='0.10' />
+                <rect x='842' y='366' width='112' height='150' rx='10' fill='#FFFFFF' fillOpacity='0.06' />
+                <rect x='972' y='320' width='112' height='150' rx='10' fill='#E8478B' fillOpacity='0.22' />
+            </g>
+
+            {/* 左下角装饰弧 */}
+            <circle cx='120' cy='690' r='210' fill='none' stroke='#E8478B' strokeOpacity='0.16' strokeWidth='1.5' />
+            <circle cx='120' cy='690' r='290' fill='none' stroke='#FFFFFF' strokeOpacity='0.05' strokeWidth='1' />
+        </svg>
+    </Box>
+
+    {/* ===== 内容：左侧骑线 ===== */}
+    <Box style={{
+        position: 'relative',
+        zIndex: 1,
+        height: '100%',
+        flexDirection: 'column',
+        justifyContent: 'center',
+        paddingLeft: 96,
+        paddingRight: 96,
+        gap: 26,
+    }}>
+        {/* 小标签 */}
+        <Box style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+            <Box style={{ width: 44, height: 4, background: '#E8478B', borderRadius: 2 }} />
+            <Text style={{ fontSize: 20, color: '#E8478B', fontWeight: 'bold', letterSpacing: 3 }}>
+                使用说明
+            </Text>
+        </Box>
+
+        {/* 主标题 */}
+        <Text style={{ fontSize: 76, fontWeight: 'bold', color: '#FFFFFF', lineHeight: 1.15, letterSpacing: 1 }}>
+            <>
+                Bestdori<span style={{ color: '#E8478B' }}>Helper</span>
+            </>
+        </Text>
+
+        {/* 副标题 */}
+        <Text style={{ fontSize: 30, color: '#C9CEDA', lineHeight: 1.5 }}>
+            把游戏截图变成 Bestdori 卡册
+        </Text>
+
+        {/* 一句话说清它干什么 */}
+        <Box style={{ marginTop: 14, flexDirection: 'row', alignItems: 'center', gap: 14 }}>
+            <Text style={{ fontSize: 22, color: '#8A93A6' }}>
+                导入截图
+            </Text>
+            <Text style={{ fontSize: 22, color: '#E8478B' }}>→</Text>
+            <Text style={{ fontSize: 22, color: '#8A93A6' }}>
+                自动识别卡面
+            </Text>
+            <Text style={{ fontSize: 22, color: '#E8478B' }}>→</Text>
+            <Text style={{ fontSize: 22, color: '#8A93A6' }}>
+                同步到「我的卡牌」
+            </Text>
+        </Box>
+    </Box>
+
+    {/* 左下角来源标注 */}
+    <Box style={{ position: 'absolute', left: 96, bottom: 46, zIndex: 1 }}>
+        <Text style={{ fontSize: 15, color: '#6B7280' }}>
+            《BanG Dream! 少女乐团派对》卡面管理工具 · 网页 / 安卓 / Windows 三端通用
+        </Text>
+    </Box>
+
+</Slide>

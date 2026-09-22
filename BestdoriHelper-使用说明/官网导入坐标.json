@@ -1,0 +1,34 @@
+{
+  "1": {
+    "desc": "登录链接（页面中部 Cloud Storage 段）",
+    "x": 531,
+    "y": 295,
+    "w": 68,
+    "h": 21,
+    "text": "Log In"
+  },
+  "2": {
+    "desc": "左侧栏 PROFILE 下的 Import 菜单",
+    "x": 49,
+    "y": 484,
+    "w": 171,
+    "h": 36,
+    "text": "Import"
+  },
+  "3": {
+    "desc": "Profile Data 文本框",
+    "x": 495,
+    "y": 441,
+    "w": 640,
+    "h": 120,
+    "text": "Enter profile data"
+  },
+  "4": {
+    "desc": "Import 按钮（文本框正下方）",
+    "x": 495,
+    "y": 573,
+    "w": 94,
+    "h": 36,
+    "text": "Import"
+  }
+}

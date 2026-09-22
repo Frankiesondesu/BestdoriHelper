@@ -1,0 +1,84 @@
+<Slide style={{ width: 1280, height: 720, padding: 0, position: 'relative', overflow: 'hidden', background: '#1F2430' }}>
+
+    {/* ===== 背景 ===== */}
+    <Box style={{ position: 'absolute', top: 0, left: 0, width: 1280, height: 720 }}>
+        <svg width={1280} height={720} viewBox='0 0 1280 720'>
+            <defs>
+                <linearGradient id='endbg' x1='0' y1='0' x2='1' y2='1'>
+                    <stop offset='0%' stopColor='#1B1F2A' />
+                    <stop offset='52%' stopColor='#272E3D' />
+                    <stop offset='100%' stopColor='#2F3849' />
+                </linearGradient>
+                <radialGradient id='endglow' cx='0.74' cy='0.42' r='0.70'>
+                    <stop offset='0%' stopColor='#E8478B' stopOpacity='0.40' />
+                    <stop offset='58%' stopColor='#E8478B' stopOpacity='0.10' />
+                    <stop offset='100%' stopColor='#E8478B' stopOpacity='0' />
+                </radialGradient>
+            </defs>
+            <rect x='0' y='0' width='1280' height='720' fill='url(#endbg)' />
+            <rect x='0' y='0' width='1280' height='720' fill='url(#endglow)' />
+
+            {/* 右侧：一排卡面，最后一张是粉色（同步完成的感觉） */}
+            <g>
+                <rect x='856' y='250' width='100' height='136' rx='10' fill='#FFFFFF' fillOpacity='0.06' />
+                <rect x='972' y='250' width='100' height='136' rx='10' fill='#FFFFFF' fillOpacity='0.05' />
+                <rect x='1088' y='250' width='100' height='136' rx='10' fill='#E8478B' fillOpacity='0.55' />
+                {/* 勾 */}
+                <path d='M1118 316 l20 20 l40 -42' fill='none' stroke='#FFFFFF' strokeOpacity='0.9' strokeWidth='5'
+                    strokeLinecap='round' strokeLinejoin='round' />
+            </g>
+
+            {/* 装饰弧 */}
+            <circle cx='1240' cy='60' r='240' fill='none' stroke='#FFFFFF' strokeOpacity='0.04' strokeWidth='1' />
+            <circle cx='60' cy='660' r='170' fill='none' stroke='#E8478B' strokeOpacity='0.12' strokeWidth='1.5' />
+        </svg>
+    </Box>
+
+    {/* ===== 内容 ===== */}
+    <Box style={{
+        position: 'relative', zIndex: 1, height: '100%',
+        flexDirection: 'column', justifyContent: 'center',
+        paddingLeft: 96, paddingRight: 96, gap: 24,
+    }}>
+        <Box style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+            <Box style={{ width: 44, height: 4, background: '#E8478B', borderRadius: 2 }} />
+            <Text style={{ fontSize: 20, color: '#E8478B', fontWeight: 'bold', letterSpacing: 3 }}>
+                就这些
+            </Text>
+        </Box>
+
+        <Text style={{ fontSize: 72, fontWeight: 'bold', color: '#FFFFFF', lineHeight: 1.15 }}>
+            现在就去试
+        </Text>
+
+        <Text style={{ fontSize: 22, color: '#C9CEDA', lineHeight: 1.6 }}>
+            截一张卡面列表图丢进去，剩下的交给它
+        </Text>
+
+        <Box style={{ width: 68, height: 4, background: '#E8478B', borderRadius: 2, marginTop: 4 }} />
+
+        {/* 入口 */}
+        <Box style={{ flexDirection: 'row', gap: 40, marginTop: 10 }}>
+            <Box style={{ flexDirection: 'column', gap: 5 }}>
+                <Text style={{ fontSize: 15, color: '#8A93A6' }}>网页版（免安装）</Text>
+                <Text style={{ fontSize: 19, color: '#FFFFFF', fontWeight: 'bold' }}>
+                    frankiesondesu.github.io/BestdoriHelper
+                </Text>
+            </Box>
+            <Box style={{ flexDirection: 'column', gap: 5 }}>
+                <Text style={{ fontSize: 15, color: '#8A93A6' }}>安卓 / Windows</Text>
+                <Text style={{ fontSize: 19, color: '#FFFFFF', fontWeight: 'bold' }}>
+                    仓库 Releases 里下载
+                </Text>
+            </Box>
+        </Box>
+    </Box>
+
+    {/* 底部小字 */}
+    <Box style={{ position: 'absolute', left: 96, bottom: 44, zIndex: 1 }}>
+        <Text style={{ fontSize: 15, color: '#6B7280' }}>
+            图片只在本机处理，不上传 · 账号密码只发往 bestdori.com
+        </Text>
+    </Box>
+
+</Slide>
