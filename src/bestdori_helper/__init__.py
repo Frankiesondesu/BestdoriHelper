@@ -10,4 +10,4 @@
     bestdori_helper.cli        命令行入口
 """
 
-__version__ = "0.1.0"
+__version__ = "1.1.0"

@@ -1,6 +1,6 @@
 {
   "name": "bestdori-helper-app",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "private": true,
   "description": "BestdoriHelper 的安卓壳（Capacitor）—— 让网页版能直连 Bestdori 接口",
   "scripts": {

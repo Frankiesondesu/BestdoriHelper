@@ -61,6 +61,24 @@ jobs:
             echo "android/ 已存在，跳过"
           fi
 
+      # Capacitor 生成的模板里 versionCode / versionName 是**写死的** 1 和 "1.0"，
+      # 而 android/ 是生成物（.gitignore 里），每次 CI 都重新生成 ——
+      # 不盖一遍的话，不管 Release 打到 v 几，装到手机上的 APK 都显示 1.0。
+      # 以 package.json 的 version 为唯一来源（打 tag 前记得先改它）。
+      - name: 给安卓工程打版本号
+        run: |
+          set -euo pipefail
+          VER="$(node -p "require('./package.json').version")"
+          CODE="$(node -p "
+            const [a, b, c] = require('./package.json').version.split('.').map(Number);
+            a * 10000 + b * 100 + c
+          ")"
+          echo "安卓版本：versionName=$VER  versionCode=$CODE"
+          sed -i "s/versionCode [0-9]\+/versionCode $CODE/" android/app/build.gradle
+          sed -i "s/versionName \"[^\"]*\"/versionName \"$VER\"/" android/app/build.gradle
+          echo "---- 盖完的结果 ----"
+          grep -n 'versionCode\|versionName' android/app/build.gradle
+
       - name: 同步网页资源进安卓工程
         run: npx cap sync android
 

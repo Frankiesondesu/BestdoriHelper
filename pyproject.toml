@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "bestdori-helper"
-version = "0.1.0"
+version = "1.1.0"
 description = "BanG Dream! 少女乐团派对 — 卡面截图批量识别 + Bestdori 卡册同步工具"
 readme = "README.md"
 requires-python = ">=3.10"
