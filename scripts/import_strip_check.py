@@ -9,16 +9,27 @@
 桌面端不需要这个 —— 它的文件列表本来就带 64×48 缩略图图标（保持宽高比）。
 
 产物：.bdh-test/import_strip.png
-用法：python scripts/import_strip_check.py
+用法：python scripts/import_strip_check.py            # 打本地
+    python scripts/import_strip_check.py --url <线上地址>   # 打线上
 """
-import pathlib, functools, http.server, threading, sys
+import argparse, pathlib, functools, http.server, threading, sys
 from playwright.sync_api import sync_playwright
+
+ap = argparse.ArgumentParser()
+ap.add_argument("--url", default=None, help="已有服务地址；不给就自己起一个")
+ap.add_argument("--port", type=int, default=8803)
+args = ap.parse_args()
 
 REPO = pathlib.Path(__file__).resolve().parents[1]
 photos = sorted((REPO / "Photo").glob("*.jpg"))[:3]
-handler = functools.partial(http.server.SimpleHTTPRequestHandler, directory=str(REPO / "docs"))
-httpd = http.server.ThreadingHTTPServer(("127.0.0.1", 8803), handler)
-threading.Thread(target=httpd.serve_forever, daemon=True).start()
+httpd = None
+if args.url:
+    URL = args.url.rstrip("/")
+else:
+    handler = functools.partial(http.server.SimpleHTTPRequestHandler, directory=str(REPO / "docs"))
+    httpd = http.server.ThreadingHTTPServer(("127.0.0.1", args.port), handler)
+    threading.Thread(target=httpd.serve_forever, daemon=True).start()
+    URL = f"http://127.0.0.1:{args.port}"
 
 ok = fail = 0
 def check(cond, msg):
@@ -30,7 +41,7 @@ try:
     with sync_playwright() as pw:
         b = pw.chromium.launch(headless=True, args=["--no-proxy-server"])
         page = b.new_context(viewport={"width": 1200, "height": 900}).new_page()
-        page.goto("http://127.0.0.1:8803", wait_until="load", timeout=60000)
+        page.goto(URL, wait_until="load", timeout=90000)
         page.wait_for_function(
             "() => document.getElementById('statusText')?.textContent?.includes('就绪')",
             timeout=180000)
@@ -80,7 +91,8 @@ try:
         print(f"  截图：{out.relative_to(REPO)}")
         b.close()
 finally:
-    httpd.shutdown()
+    if httpd:
+        httpd.shutdown()
 
 print(f"\n通过 {ok} / 失败 {fail}")
 sys.exit(1 if fail else 0)
