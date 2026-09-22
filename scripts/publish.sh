@@ -247,6 +247,13 @@ while :; do
     ok "线上与仓库一致：$detail"
     echo
     echo "  网页版：$SITE/"
+    echo
+    echo "  提醒：安装包（APK / Windows）不在 git 里，用户从 Releases 下载 ——"
+    echo "        而 Release **只有打 tag 才会更新**（build-apps.yml 的 release 任务）。"
+    echo "        所以改了 docs/ 或要发新版时，别忘了："
+    echo "          1) 先改 package.json 的 version（安卓版本号的唯一来源）"
+    echo "          2) git tag -a v1.x.0 -F -   然后  git push origin v1.x.0"
+    echo "          3) 等「构建安装包」跑完（安卓几分钟，Windows 十几分钟）"
     exit 0
   fi
 
