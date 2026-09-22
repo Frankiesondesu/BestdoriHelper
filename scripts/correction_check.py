@@ -16,6 +16,7 @@
 from __future__ import annotations
 
 import argparse
+import collections
 import functools
 import http.server
 import socketserver
@@ -78,6 +79,7 @@ def main() -> int:
 
     errors: list[str] = []
     failed: list[str] = []
+    not_found: collections.Counter = collections.Counter()
     real: list[str] = []        # 排除已知 404 之后剩下的实质报错
 
     def check(ok: bool, msg: str) -> None:
@@ -93,6 +95,10 @@ def main() -> int:
             page.on("console", lambda m: errors.append(f"[{m.type}] {m.text}")
                     if m.type == "error" else None)
             page.on("pageerror", lambda e: errors.append(f"[pageerror] {e}"))
+            # 单独收集 404 的真实 URL —— 卡池里有些卡没有缩略图，
+            # 前端靠 thumbs.json 清单挑变体，不该再发任何必然 404 的请求。
+            page.on("response", lambda r: not_found.update([r.url])
+                    if r.status == 404 else None)
 
             page.goto(url, wait_until="load", timeout=60000)
             page.wait_for_function(
@@ -230,12 +236,18 @@ def main() -> int:
                 f"() => window.__bdh.S.shots[{target['si']}].cells[{target['ci']}].cardId")
             check(again == second, f"改第二次也生效（#{again}）")
 
-            # 卡图 404 是已知的：2468 张卡里只有 2172 张有未特训卡图，
-            # 前端靠 <img onerror> 回退到 _t.webp。这类噪音不算错，单独报。
-            known_404 = [e for e in errors if "404" in e and "File not found" in e]
-            real = [e for e in errors if e not in known_404]
-            if known_404:
-                print(f"\n（{len(known_404)} 条 404 是缺未特训卡图的已知回退，不算错）")
+            # 卡图 404 应该是 0 —— 卡池里 188 张特殊卡两种形态都没有图，
+            # 前端改查 thumbs.json 清单来挑变体，缺图渲染占位块。
+            # 这里断言「一条 404 都不该有」，防止以后又退回「先请求再 onerror」。
+            print(f"\n[5] 404 检查")
+            if not_found:
+                check(False, f"出现 {sum(not_found.values())} 条 404（应当为 0）")
+                for u, n in not_found.most_common(5):
+                    print(f"      {n} × {u}")
+            else:
+                check(True, "全程零 404")
+
+            real = [e for e in errors if "404" not in e]
             if real:
                 print("\n控制台实质报错：")
                 for e in real[:10]:

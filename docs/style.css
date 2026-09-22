@@ -558,6 +558,25 @@ td.thumb .pair .noimg { width: 76px; height: 76px; border-radius: 6px; backgroun
 .cand img { width: 28px; height: 28px; border-radius: 5px; object-fit: cover; }
 .cand.cur { border-color: var(--accent); color: var(--text); }
 
+/* 缺缩略图的占位块。
+   卡池里 188 张特殊卡（campaign / special）两种形态都没有图，
+   以前会渲染成浏览器的破图图标 —— 现在给个明确的虚线方块。
+   尺寸跟着各处的 <img> 走；更具体的选择器（如 td.thumb .pair .noimg）
+   优先级更高，不受影响。 */
+.noimg {
+  display: inline-flex; align-items: center; justify-content: center;
+  flex: none; box-sizing: border-box;
+  background: var(--panel-2); border: 1px dashed var(--border-2);
+  border-radius: 6px; color: var(--text-faint);
+  font-size: 10px; line-height: 1;
+}
+td.thumb .noimg { width: 42px; height: 42px; display: flex; }
+.pick-item .noimg { width: 40px; height: 40px; }
+.cand .noimg { width: 28px; height: 28px; border-radius: 5px; font-size: 9px; }
+/* 详情页和档案预览里的占位块要撑满容器，跟旁边的图对齐 */
+.detail-imgs .noimg { width: 100%; aspect-ratio: 4 / 3; font-size: 12px; }
+.peek-cell .noimg { width: 100%; aspect-ratio: 1; border-radius: 8px; }
+
 /* 候选行的出口：「都不对？搜卡面」
    注意 button 有全局 min-height:44px，这里必须显式清掉，否则候选行会被撑高 */
 .cand-more {

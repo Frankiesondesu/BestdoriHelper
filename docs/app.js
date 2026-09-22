@@ -21,6 +21,7 @@ import { detectBoxes, refineBox } from './src/detect.js';
 const S = {
   index: null,          // FingerprintIndex
   meta: null,           // cards.json
+  thumbs: null,         // thumbs.json：{n: Set, t: Set} —— 哪些卡真的有缩略图
   files: [],            // 待识别的文件
   shots: [],            // 识别结果：[{name, w, h, url, cells: []}]
   activeShot: 0,
@@ -63,7 +64,39 @@ function setProgress(p) {
 }
 
 const cardKey = (id, tr) => `${id}_${tr ? 't' : 'n'}`;
-const thumbUrl = (id, tr) => `data/thumbs/${id}_${tr ? 't' : 'n'}.webp`;
+
+/**
+ * 缩略图 URL；这张卡没有可用图时返回 null。
+ *
+ * 卡池里**不是每张卡都有图**：实测 2468 张里 2172 张有未特训形态（`_n`）、
+ * 1693 张有特训后形态（`_t`），而 **188 张两张都没有**（`campaign` / `special`
+ * 类的特殊卡 —— 导出脚本按指纹库生成缩略图，它们不在库里）。
+ *
+ * 所以不能「先请求 _n，404 了再 onerror 换 _t」：那 188 张换了也没用，
+ * 只会留下坏图 + 两条 404。自选卡面按卡号倒序排，开头正好是这批卡，
+ * 用户看到的就是「全部 404」。
+ *
+ * 改成查清单（data/thumbs.json）：请求的形态没有就换成有的那个，都没有就 null，
+ * 由调用方渲染占位块。清单没加载成功时退回老行为，至少不会更差。
+ */
+function thumbUrl(id, tr) {
+  const want = tr ? 't' : 'n';
+  const m = S.thumbs;
+  if (!m) return `data/thumbs/${id}_${want}.webp`;
+  if (m[want].has(id)) return `data/thumbs/${id}_${want}.webp`;
+  const other = tr ? 'n' : 't';
+  return m[other].has(id) ? `data/thumbs/${id}_${other}.webp` : null;
+}
+
+/** 缩略图元素：有图给 <img>，没图给占位块。渲染缩略图的地方都该走它。 */
+function thumbEl(id, tr, { cls = '', alt = '', loading = 'lazy' } = {}) {
+  const src = thumbUrl(id, tr);
+  if (!src) {
+    return `<span class="noimg${cls ? ` ${cls}` : ''}" title="卡池里没有这张卡的图">无图</span>`;
+  }
+  return `<img${cls ? ` class="${cls}"` : ''} src="${src}"` +
+         `${loading ? ` loading="${loading}"` : ''} alt="${alt}">`;
+}
 
 /** 取卡牌显示信息 */
 function cardInfo(id) {
@@ -156,6 +189,22 @@ async function loadData() {
   S.meta = await metaRes.json();
   log(`卡牌数据：${Object.keys(S.meta.cards).length} 张卡 / ` +
       `${Object.keys(S.meta.characters).length} 角色 / ${Object.keys(S.meta.bands).length} 乐队`);
+
+  // 缩略图清单：不是每张卡都有图（188 张两种形态都没有），前端要先知道，
+  // 才能选对变体、给缺图的渲染占位块，而不是发一堆必然 404 的请求。
+  // 加载失败不致命 —— thumbUrl() 会退回「直接猜」的老行为。
+  try {
+    const thRes = await fetch('data/thumbs.json');
+    if (thRes.ok) {
+      const t = await thRes.json();
+      S.thumbs = { n: new Set(t.n), t: new Set(t.t) };
+      log(`缩略图清单：未特训 ${S.thumbs.n.size} 张 / 特训后 ${S.thumbs.t.size} 张`);
+    } else {
+      log('缩略图清单加载失败，将按需请求（可能有个别 404）', 'warn');
+    }
+  } catch (e) {
+    log(`缩略图清单读取异常：${e.message}`, 'warn');
+  }
 
   setStatus('加载指纹库…', 'busy');
   const fpRes = await fetch('data/fingerprints.bin');
@@ -426,8 +475,8 @@ function renderResults() {
     const info = r.cardId != null ? cardInfo(r.cardId) : null;
     const attrC = info ? (ATTR_COLOR[info.attribute] || '#888') : '#666';
     const thumb = r.cardId != null
-      ? `<img src="${thumbUrl(r.cardId, r.trained)}" loading="lazy" alt="">`
-      : '<div style="width:42px;height:42px;border-radius:5px;background:#26262f"></div>';
+      ? thumbEl(r.cardId, r.trained)
+      : '<span class="noimg"></span>';
     // 对照视图：左=截图里那一格，右=匹配到的 Bestdori 卡图。
     // 并排放才能一眼看出「是不是同一张画」—— 这是核对的前提。
     const pair =
@@ -436,7 +485,7 @@ function renderResults() {
         ? `<img class="cellimg" src="${r.cellThumb}" alt="截图格">`
         : `<div class="noimg"></div>`) +
       (r.cardId != null
-        ? `<img class="matchimg" src="${thumbUrl(r.cardId, r.trained)}" loading="lazy" alt="">`
+        ? thumbEl(r.cardId, r.trained, { cls: 'matchimg' })
         : `<div class="noimg"></div>`) +
       `</div>`;
     const name = info
@@ -455,7 +504,7 @@ function renderResults() {
       const cur = (c.cardId === r.cardId && c.trained === r.trained) ? ' cur' : '';
       return `<div class="cand${cur}" data-pick="${r.si}:${r.ci}:${c.cardId}:${c.trained ? 1 : 0}" ` +
         `title="${escapeHtml(ci2.name)}">` +
-        `<img src="${thumbUrl(c.cardId, c.trained)}" loading="lazy" alt="">` +
+        thumbEl(c.cardId, c.trained) +
         `<span>${escapeHtml(ci2.character || ci2.name).slice(0, 8)}</span>` +
         `<span class="mono" style="color:var(--text-faint)">${c.score.toFixed(2)}</span></div>`;
     }).join('') +
@@ -589,7 +638,7 @@ function renderInventory() {
         ? '<span class="pill ok">已确认</span>'
         : '<span class="pill warn">待确认</span>';
       return `<tr class="invrow" data-jump="${x.shot}:${x.cell}">
-        <td class="thumb"><img src="${thumbUrl(x.cardId, x.trained)}" loading="lazy" alt=""></td>
+        <td class="thumb">${thumbEl(x.cardId, x.trained)}</td>
         <td><div class="name">${escapeHtml(i.name)}</div>
             <div class="ch">${escapeHtml(i.character)} · 卡 ${x.cardId}</div></td>
         <td><span class="pill" style="color:${ac};border-color:${ac}66">${ATTR_CN[i.attribute] || i.attribute}</span>
@@ -945,7 +994,11 @@ function zoomCellImage(si, ci, which) {
   if (!r) return;
   const isCell = which === 'cell';
   const src = isCell ? r.cellThumb : (r.cardId != null ? thumbUrl(r.cardId, r.trained) : '');
-  if (!src) { log('这一格没有可放大的图', 'err'); return; }
+  if (!src) {
+    // 截图格缺失、或这张卡在卡池里没有缩略图（188 张特殊卡属于后者）
+    log('这一格没有可放大的图', 'warn');
+    return;
+  }
   const info = r.cardId != null ? cardInfo(r.cardId) : null;
   openLightbox(
     `<img src="${src}" alt="">`,
@@ -999,8 +1052,16 @@ function pickCardManually(si, ci) {
     if (exact != null && cards[exact]) {
       ids = [exact, ...ids.filter((id) => id !== exact)];
     }
-    // 没搜索词时按卡号倒序（新卡在前）；有搜索词就保持库里顺序
-    if (!q) ids.sort((a, b) => b - a);
+    // 没搜索词时的排序：**有图的排前面**，组内新卡在前。
+    //
+    // 不能纯按卡号倒序 —— 卡池里 188 张特殊卡（campaign / special）两种形态
+    // 都没有图，而它们正好是卡号最大的那批。纯倒序会让它们占满开头 60 个位置
+    // （实测 50/60 是占位块），用户打开自选卡面看到的是一片灰块，像坏了。
+    // 有搜索词时保持库里顺序（更贴近相关性）。
+    if (!q) {
+      const noImg = (id) => (S.thumbs && !S.thumbs.n.has(id) && !S.thumbs.t.has(id) ? 1 : 0);
+      ids.sort((a, b) => noImg(a) - noImg(b) || b - a);
+    }
 
     const shown = ids.slice(0, 60);
     $('cardPickCount').innerHTML = ids.length
@@ -1015,8 +1076,7 @@ function pickCardManually(si, ci) {
         const i = cardInfo(id);
         const hit = id === exact ? ' exact' : '';
         return `<button class="pick-item${hit}" data-pick-card="${id}">
-            <img src="data/thumbs/${id}_n.webp" loading="lazy" alt=""
-                 onerror="this.onerror=null;this.src='data/thumbs/${id}_t.webp'">
+            ${thumbEl(id, false)}
             <span class="pick-name">${escapeHtml(i.name)}</span>
             <span class="pick-sub">${escapeHtml(i.character)} · ${id}</span>
           </button>`;
@@ -1053,6 +1113,7 @@ function showCardDetail(si, ci) {
   const info = r.cardId != null ? cardInfo(r.cardId) : null;
   const url = r.cardId != null ? `https://bestdori.com/info/cards/${r.cardId}` : '';
   const attrC = info ? (ATTR_COLOR[info.attribute] || '#888') : '#666';
+  const cardThumb = r.cardId != null ? thumbUrl(r.cardId, r.trained) : null;
 
   const imgs =
     '<div class="detail-imgs">' +
@@ -1061,9 +1122,13 @@ function showCardDetail(si, ci) {
            title="点击放大这张"><figcaption>截图里这一格</figcaption></figure>`
       : '') +
     (r.cardId != null
-      ? `<figure><img src="${thumbUrl(r.cardId, r.trained)}" loading="lazy" alt=""
-           data-zoom="match" title="点击放大这张">
-         <figcaption>Bestdori 同款卡图</figcaption></figure>`
+      ? (cardThumb
+        ? `<figure><img src="${cardThumb}" loading="lazy" alt=""
+             data-zoom="match" title="点击放大这张">
+           <figcaption>Bestdori 同款卡图</figcaption></figure>`
+        // 188 张特殊卡两种形态都没有图 —— 明说，别让用户以为是加载失败
+        : `<figure><div class="noimg"></div>
+           <figcaption>这张卡没有图（活动 / 特殊卡）</figcaption></figure>`)
       : '') +
     '</div>';
 
@@ -1311,12 +1376,10 @@ async function peekProfile() {
   $('peekGrid').innerHTML = ids.slice(0, PEEK_LIMIT).map((id) => {
     const info = cardInfo(id);
     const isTrained = cards.get(id).train;
-    const t = isTrained ? 't' : 'n';
-    const other = t === 't' ? 'n' : 't';
-    // 约 6.5% 的卡没有 *_normal 图，加载失败就换另一形态
+    // 图由 thumbEl 挑（清单里没有的变体会自动换另一个，两种都没有就给占位块）——
+    // 原来靠 onerror 兜底，对「两种形态都没有图」的 188 张特殊卡没用
     return `<figure class="peek-cell" title="${escapeHtml(info.name)}${isTrained ? ' · 特训后' : ''}">
-      <img src="data/thumbs/${id}_${t}.webp" loading="lazy" alt=""
-           onerror="this.onerror=null;this.src='data/thumbs/${id}_${other}.webp'">
+      ${thumbEl(id, isTrained)}
       <figcaption>${escapeHtml(info.name)}</figcaption>
     </figure>`;
   }).join('');

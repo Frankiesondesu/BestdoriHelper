@@ -24,6 +24,9 @@ from pathlib import Path
 from PIL import Image
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
+# 同目录的 build_thumbs_manifest 也要能 import（直接跑脚本时 Python 会自动加
+# 脚本目录，但被当模块导入时不会 —— 显式加上更稳）
+sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from bestdori_helper.config import Settings  # noqa: E402
 
@@ -148,6 +151,18 @@ def main() -> int:
     print(f"  {thumbs_dir}")
     avg = total_bytes / max(1, written) / 1024
     print(f"  平均 {avg:.1f} KB/张")
+
+    # ---- 缩略图清单 -------------------------------------------------
+    # 前端必须知道**哪些卡真的有图**，否则只能「先请求 _n、404 了再换 _t」，
+    # 而两种形态都没有图的卡（实测 188 张，campaign / special 类）换了也没用，
+    # 只会留下坏图 + 两条 404。自选卡面按卡号倒序排，开头正好是这批，
+    # 用户看到的就是「全部 404」。
+    print()
+    from build_thumbs_manifest import build as build_manifest
+    rc = build_manifest(thumbs_dir, out_dir / "thumbs.json")
+    if rc != 0:
+        print("! 缩略图清单生成失败 —— 前端会退回按需请求（可能有 404）", file=sys.stderr)
+
     return 0
 
 
