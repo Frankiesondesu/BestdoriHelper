@@ -349,6 +349,45 @@ button.peek-close { font-size: 12px; padding: 4px 10px; min-height: 0; }
 .dropzone .hint { font-size: 11.5px; color: var(--text-faint); }
 .dropzone .hint strong { color: var(--text-dim); }
 
+/* 导入的截图缩略图条。
+   选完图要让人一眼看见「选了什么」—— 只给一行文字的话，选错文件夹、
+   多选了一张都发现不了，得等识别完才知道。 */
+.strip-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 9px; }
+.strip-head .hint { font-size: 12px; color: var(--text-dim); }
+.strip-head .hint b { color: var(--text); }
+.file-strip {
+  display: flex; gap: 10px; overflow-x: auto;
+  padding-bottom: 6px; scroll-snap-type: x proximity;
+}
+.file-thumb {
+  position: relative; flex: none; width: 150px; margin: 0;
+  scroll-snap-align: start; cursor: zoom-in;
+}
+.file-thumb img {
+  display: block; width: 100%; height: 78px;
+  /* 用 contain 而不是 cover：这个条的作用是「确认选了什么」，
+     裁掉两侧可能正好裁掉能认出选错图的那部分。手机截图是 2400×1080，
+     contain 下 150px 宽正好约 68px 高，几乎填满，只有很窄的留白。 */
+  object-fit: contain; object-position: center;
+  border-radius: 8px; border: 1px solid var(--border);
+  background: var(--panel-2);
+}
+.file-thumb figcaption {
+  margin-top: 4px; font-size: 10.5px; color: var(--text-faint);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+/* 移除按钮：全局 button 有 min-height:44px / padding，这里必须显式清掉 */
+.file-del {
+  position: absolute; top: 4px; right: 4px;
+  width: 20px; height: 20px; min-height: 0; padding: 0;
+  display: flex; align-items: center; justify-content: center;
+  border-radius: 50%; font-size: 13px; line-height: 1; cursor: pointer;
+  background: rgba(10, 10, 14, 0.72);
+  border: 1px solid var(--border-2);
+  color: var(--text-dim);
+}
+.file-del:hover { background: var(--err); border-color: var(--err); color: #fff; }
+
 /* 进度 */
 .progress { height: 4px; margin: 10px 0 0; border-radius: 2px; background: var(--panel-2); overflow: hidden; display: none; }
 .progress.on { display: block; }

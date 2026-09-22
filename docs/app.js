@@ -400,9 +400,62 @@ function renderAll() {
   renderResults();
   buildInventoryFromShots();
   updateBadges();
+  renderFileStrip();
   $('fileSummary').textContent = S.files.length
     ? `已选 ${S.files.length} 张：${S.files.map((f) => f.name).join('、').slice(0, 120)}`
     : '还没有选择截图';
+}
+
+// 缩略图条用的 object URL。每次重渲染前必须把上一批 revoke 掉，
+// 否则反复导入/移除会一直占着内存（每张图都是一份完整的解码数据）。
+let FILE_URLS = [];
+
+function renderFileStrip() {
+  const box = $('fileStrip');
+  FILE_URLS.forEach(URL.revokeObjectURL);
+  FILE_URLS = [];
+
+  if (!S.files.length) {
+    $('fileCard').hidden = true;
+    box.innerHTML = '';
+    return;
+  }
+  $('fileCard').hidden = false;
+  $('fileCount').textContent = S.files.length;
+
+  box.innerHTML = S.files.map((f, i) => {
+    const u = URL.createObjectURL(f);
+    FILE_URLS.push(u);
+    return `<figure class="file-thumb" data-file="${i}" title="${escapeHtml(f.name)}（点开放大）">
+      <img src="${u}" alt="${escapeHtml(f.name)}" loading="lazy">
+      <button class="file-del" data-del="${i}" title="移除这张">×</button>
+      <figcaption>${escapeHtml(f.name)}</figcaption>
+    </figure>`;
+  }).join('');
+
+  box.querySelectorAll('.file-thumb').forEach((el) => {
+    el.onclick = (ev) => {
+      if (ev.target.closest('.file-del')) return;   // 点 × 不放大
+      const f = S.files[Number(el.dataset.file)];
+      if (!f) return;
+      LB_OBJ_URL = URL.createObjectURL(f);
+      openLightbox(`<img src="${LB_OBJ_URL}" alt="">`, f.name, { zoomable: true });
+    };
+  });
+
+  box.querySelectorAll('.file-del').forEach((el) => {
+    el.onclick = (ev) => {
+      ev.stopPropagation();
+      const i = Number(el.dataset.del);
+      const name = S.files[i]?.name ?? '';
+      S.files.splice(i, 1);
+      const empty = !S.files.length;
+      $('btnRun').disabled = empty;
+      $('btnClear').disabled = empty;
+      renderAll();
+      log(`已移除 ${name}（剩 ${S.files.length} 张）`);
+    };
+  });
 }
 
 function renderPreview() {
@@ -838,6 +891,8 @@ const TABS = ['import', 'result', 'inventory', 'sync'];
 let LB_SCALE = 1;
 //: 大图模式下点图片要做什么（用来从"放大单图"跳到"两张对比"）
 let LB_IMG_CLICK = null;
+//: 弹层里显示本地文件时用的 object URL，关闭时 revoke（见 closeLightbox）
+let LB_OBJ_URL = null;
 
 /** 打开弹层。
  *  :param zoomable: 显示缩放按钮（看单张大图时用）
@@ -873,6 +928,7 @@ function closeLightbox() {
   $('lbBody').innerHTML = '';   // 顺手释放大图，别攥着内存
   $('lbBody').onclick = null;
   LB_IMG_CLICK = null;
+  if (LB_OBJ_URL) { URL.revokeObjectURL(LB_OBJ_URL); LB_OBJ_URL = null; }
 }
 
 /** 1 = 适应容器宽度；放大靠百分比撑开，配合 .lb-body 的滚动就能拖动看细节 */
@@ -1600,8 +1656,6 @@ function addFiles(files) {
   renderAll();
   log(`已加入 ${added} 张（共 ${S.files.length} 张）`, 'ok');
 }
-
-// ---- 启动 -------------------------------------------------------------
 
 // ---- 启动 -------------------------------------------------------------
 
