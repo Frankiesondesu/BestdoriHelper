@@ -131,8 +131,13 @@ fi
 
 step "4/4  等待 Pages 部署并校验（最多 8 分钟）"
 
-TMP="$(mktemp -d)"
-trap 'rm -rf "$TMP"' EXIT
+# 临时文件放 .git/ 下用相对路径。
+# 不用 mktemp -d：它返回 Windows 绝对路径（C:\Users\...），Git Bash 的 rm
+# 处理不了，会被 safe-delete 守卫判成非法路径而 FAIL_CLOSED，退出时刷一屏报错。
+TMP=".git/publish-tmp"
+rm -rf "$TMP" 2>/dev/null || true
+mkdir -p "$TMP"
+trap 'rm -rf "$TMP" 2>/dev/null || true' EXIT
 
 # 关键：拿**仓库里的 blob** 当基准，不是工作区文件 ——
 # core.autocrlf 会让两者差「行数」个字节，拿工作区比会误判成没部署。
