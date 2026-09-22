@@ -47,6 +47,14 @@ done
 
 export GIT_TERMINAL_PROMPT=0
 
+# 临时文件放 .git/ 下用相对路径。
+# 不用 mktemp -d：它返回 Windows 绝对路径（C:\Users\...），Git Bash 的 rm
+# 处理不了，会被 safe-delete 守卫判成非法路径而 FAIL_CLOSED，退出时刷一屏报错。
+TMP=".git/publish-tmp"
+rm -rf "$TMP" 2>/dev/null || true
+mkdir -p "$TMP"
+trap 'rm -rf "$TMP" 2>/dev/null || true' EXIT
+
 step() { printf '\n\033[1m== %s\033[0m\n' "$1"; }
 ok()   { printf '  \033[32m✓\033[0m %s\n' "$1"; }
 bad()  { printf '  \033[31m✗\033[0m %s\n' "$1"; }
@@ -67,20 +75,32 @@ remote_sha() {
 # 挑一个真能连上 GitHub 的代理。
 #
 # 环境里默认带着沙箱自己的代理（$http_proxy），它会挂 —— 实测表现是
-# `CONNECT tunnel failed, response 502`，或者干脆连接超时（curl 返回 000）。
+# `CONNECT tunnel failed, response 502`，或者干脆连接超时（HTTP 000）。
 # 这时退回 Frankieson 本机的 127.0.0.1:7897。
+#
+# ⚠️ 探针必须用「真实输出文件 + HTTP 状态码」，不能靠 curl 的退出码：
+#   * `-o /dev/null` 在 Git Bash 下会写失败，curl 退出码 23，把能用的代理误判成不通
+#   * `-f` 也会因 502 直接非零退出，信息量不如状态码
 # 输出 "none" 表示直连可用；返回 1 表示都不通。
+probe_url() {   # $1 = 代理（空串表示直连）
+  local code
+  if [ -z "$1" ]; then
+    code="$(timeout 20 curl -s -o "$TMP/probe" -w '%{http_code}' \
+              --noproxy '*' https://github.com 2>/dev/null)"
+  else
+    code="$(timeout 15 curl -s -o "$TMP/probe" -w '%{http_code}' \
+              -x "$1" https://github.com 2>/dev/null)"
+  fi
+  [ "$code" = "200" ]
+}
+
 pick_proxy() {
   local p
   for p in "${http_proxy:-}" "http://127.0.0.1:7897"; do
     [ -n "$p" ] || continue
-    if timeout 15 curl -sf -o /dev/null -x "$p" https://github.com 2>/dev/null; then
-      printf '%s' "$p"; return 0
-    fi
+    if probe_url "$p"; then printf '%s' "$p"; return 0; fi
   done
-  if timeout 15 curl -sf -o /dev/null --noproxy '*' https://github.com 2>/dev/null; then
-    printf 'none'; return 0
-  fi
+  if probe_url ""; then printf 'none'; return 0; fi
   return 1
 }
 
@@ -195,14 +215,6 @@ fi
 # ---- 4. 等 Pages 部署完，并校验线上 = 仓库 ------------------------------
 
 step "4/4  等待 Pages 部署并校验（最多 8 分钟）"
-
-# 临时文件放 .git/ 下用相对路径。
-# 不用 mktemp -d：它返回 Windows 绝对路径（C:\Users\...），Git Bash 的 rm
-# 处理不了，会被 safe-delete 守卫判成非法路径而 FAIL_CLOSED，退出时刷一屏报错。
-TMP=".git/publish-tmp"
-rm -rf "$TMP" 2>/dev/null || true
-mkdir -p "$TMP"
-trap 'rm -rf "$TMP" 2>/dev/null || true' EXIT
 
 # 关键：拿**仓库里的 blob** 当基准，不是工作区文件 ——
 # core.autocrlf 会让两者差「行数」个字节，拿工作区比会误判成没部署。
