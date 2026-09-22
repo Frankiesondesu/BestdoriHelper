@@ -95,8 +95,27 @@ else
     exit 1
   fi
   echo "  本地 $LOCAL_SHA -> 远端 $REMOTE_SHA，开始推送（体积大时可能要十几分钟）…"
-  if ! git push --progress origin "$BRANCH"; then
-    bad "推送失败"
+  # 走代理时偶发 TLS 断连（schannel: server closed abruptly / missing close_notify），
+  # 重试一次通常就好。重试前确认远端没被推上去，避免重复推。
+  pushed=0
+  for attempt in 1 2 3; do
+    if git push --progress origin "$BRANCH"; then
+      pushed=1
+      break
+    fi
+    now_remote="$(git ls-remote origin "refs/heads/$BRANCH" 2>/dev/null | cut -f1)"
+    if [ "$now_remote" = "$LOCAL_SHA" ]; then
+      warn "推送报错，但远端已是目标提交（实际成功了）"
+      pushed=1
+      break
+    fi
+    if [ "$attempt" -lt 3 ]; then
+      warn "第 $attempt 次推送失败，5 秒后重试…"
+      sleep 5
+    fi
+  done
+  if [ "$pushed" != "1" ]; then
+    bad "推送失败（试了 3 次）"
     exit 1
   fi
   ok "已推送 $(git rev-parse --short HEAD)"
