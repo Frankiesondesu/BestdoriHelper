@@ -41,10 +41,49 @@ const EVENT_TYPE_CN = {
 function fillEvents() {
   const sel = $('tmEvent');
   if (!sel || sel.dataset.ready) return;
-  const list = Object.entries(EVENTS).sort((a, b) => Number(b[0]) - Number(a[0]));
-  sel.innerHTML = '<option value="">不计活动加成</option>' + list.map(([id, e]) =>
-    `<option value="${id}">[${EVENT_TYPE_CN[e.ty] || e.ty}] ${e.n || id}</option>`).join('');
+
+  const now = Math.floor(Date.now() / 1000);
+  // **按开始时间倒序**，不是按 eventId —— 编号大不代表时间新
+  // （国服 5001 编号很大，实际是 2022 年的活动）
+  const list = Object.entries(EVENTS).sort((a, b) => (b[1].s || 0) - (a[1].s || 0));
+
+  const fmt = (sec) => {
+    if (!sec) return '';
+    const d = new Date(sec * 1000);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  };
+
+  sel.innerHTML = '<option value="">不计活动加成</option>' + list.map(([id, e]) => {
+    const live = e.s && e.e && e.s <= now && now <= e.e;
+    const date = fmt(e.s);
+    const tag = live ? '进行中 · ' : (e.e && now > e.e ? '' : '');
+    return `<option value="${id}">${tag}[${EVENT_TYPE_CN[e.ty] || e.ty}] ${date} ${e.n || id}</option>`;
+  }).join('');
   sel.dataset.ready = '1';
+
+  // 默认选中：进行中的那期；没有就选时间最新的
+  const live = list.find(([, e]) => e.s && e.e && e.s <= now && now <= e.e);
+  const pick = live ? live[0] : list[0]?.[0];
+  if (pick && !sel.value) {
+    sel.value = pick;
+    setTimeout(() => { if ($('tmEvent').value === pick) updateEventHint(); }, 0);
+  }
+}
+
+/** 活动选中后在提示行显示加成摘要 */
+function updateEventHint() {
+  const id = $('tmEvent').value;
+  const hint = $('tmHint');
+  if (!hint) return;
+  if (!id) { hint.textContent = ''; return; }
+  const e = EVENTS[id];
+  if (!e) return;
+  const parts = [];
+  if (e.attr?.length) parts.push('属性 ' + e.attr.map((a) => `${a.a}+${a.p}%`).join('/'));
+  if (e.ch?.length) parts.push(`角色 ${e.ch.length} 人 +${e.ch[0].p}%`);
+  if (e.ab?.pointPercent) parts.push(`双重 +${e.ab.pointPercent}% 点`);
+  if (e.ab?.parameterPercent) parts.push(`双重 +${e.ab.parameterPercent}% 综合力`);
+  hint.textContent = parts.join(' · ');
 }
 
 const BAND_NAME = {
