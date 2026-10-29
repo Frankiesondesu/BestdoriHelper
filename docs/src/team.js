@@ -64,6 +64,8 @@ const SCORE_SCALE = 2.1;
 //   n=12 -> 47.5 万次，约 1 秒
 // 三围是分数的主项，取前 12 基本不会漏掉真正的最优解。
 const POOL_LIMIT = 12;
+/** 活动加成卡额外纳入的上限（按加成降序取） */
+const BONUS_LIMIT = 12;
 
 // ---------------------------------------------------------------------------
 // 综合力
@@ -451,13 +453,32 @@ export function eventPoints(score, event, opt = {}) {
  */
 export function bestTeams(pool, parsed, ctx, opt = {}) {
   const topN = opt.topN ?? 10;
+  // ⚠️ 默认按**分数**排会把"综合力高但没吃活动加成"的队排前面，
+  // 真正能拿点数的反而被挤出 TopN。要追活动点时必须传 sortBy: 'points'。
+  const sortBy = opt.sortBy || 'score';
   const limit = opt.poolLimit ?? POOL_LIMIT;
 
-  const ranked = [...pool]
-    .map((c) => ({ c, sum: (c.sx || [0, 0, 0]).reduce((a, b) => a + b, 0) }))
-    .sort((a, b) => b.sum - a.sum)
-    .slice(0, limit)
-    .map((x) => x.c);
+  // ⚠️ **不能只按三围取前 N**：活动加成卡的属性/角色不一定是三围最高的，
+  // 单靠三围过滤会把它们整批筛掉，最后算出的队伍一点加成都不吃（实测踩过）。
+  // 所以候选池 = 三围最高的 N 张 **并上** 所有吃到活动加成的卡。
+  const withSum = pool.map((c) => ({
+    c, sum: (c.sx || [0, 0, 0]).reduce((a, b) => a + b, 0),
+  })).sort((a, b) => b.sum - a.sum);
+
+  const picked = new Map();
+  for (const x of withSum.slice(0, limit)) picked.set(x.c.id ?? x.c, x.c);
+
+  if (ctx.event) {
+    // 吃到加成的卡按「加成优先、三围次之」排序，只取前 BONUS_LIMIT 张。
+    // 全拉进来会让候选池膨胀到上百张，C(n,5) 直接爆炸（实测超时）。
+    const bonusCards = withSum
+      .map((x) => ({ ...x, bonus: eventBonusFor(x.c, ctx.event, 0).point }))
+      .filter((x) => x.bonus > 0)
+      .sort((a, b) => (b.bonus - a.bonus) || (b.sum - a.sum))
+      .slice(0, BONUS_LIMIT);
+    for (const x of bonusCards) picked.set(x.c.id ?? x.c, x.c);
+  }
+  const ranked = [...picked.values()];
 
   const results = [];
   const n = ranked.length;
@@ -474,13 +495,30 @@ export function bestTeams(pool, parsed, ctx, opt = {}) {
               const r = scoreTeam(team, parsed, ctx);
               if (!best || r.score > best.score) best = { team, ...r };
             }
-            results.push({ team: best.team, score: best.score, power: best.power });
+            const row = { team: best.team, score: best.score, power: best.power };
+            if (sortBy === 'points') {
+              // 队伍的活动加成（逐卡取平均，与游戏结算口径一致）
+              const bonuses = best.team.map((c) => eventBonusFor(c, ctx.event || null, 0).point);
+              row.bonusPct = bonuses.reduce((a, b) => a + b, 0) / bonuses.length;
+              row.points = eventPoints(best.score, ctx.event || null,
+                { bonus: row.bonusPct, boost: ctx.boost ?? 5 });
+            }
+            results.push(row);
           }
         }
       }
     }
   }
 
-  results.sort((a, b) => b.score - a.score);
+  results.sort((a, b) => {
+    if (sortBy === 'points') {
+      // 点数有上限（分数够 150 万就封顶），封顶后只能靠加成拉开差距，
+      // 所以**先比加成，再比分数**，而不是直接比点数。
+      const bp = b.bonusPct ?? 0, ap = a.bonusPct ?? 0;
+      if (Math.abs(bp - ap) > 0.5) return bp - ap;
+      return b.score - a.score;
+    }
+    return b.score - a.score;
+  });
   return results.slice(0, topN);
 }
