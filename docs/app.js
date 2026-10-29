@@ -33,6 +33,9 @@ const S = {
   orb: null,            // 几何校验器（懒加载）
 };
 
+// 组队页要读清单与卡牌元数据；ES module 不共享顶层作用域，显式挂到 window。
+window.__BDH_STATE = S;
+
 const $ = (id) => document.getElementById(id);
 
 // ---- 工具 -------------------------------------------------------------
@@ -776,14 +779,104 @@ const ITEM_SLOTS = ['Menu', 'Plaza', 'Everyone', 'Magazine',
   'PoppinParty', 'Afterglow', 'PastelPalettes', 'Roselia',
   'HelloHappyWorld', 'Morfonica'];
 
-function buildProfileForImport(serverKey) {
+/**
+ * 生成 Bestdori 能导入的档案。
+ *
+ * ⚠️ **真实格式和我们最初写的完全不同**（2026-10 用真实导出档案核对过）：
+ *
+ * ```json
+ * { "name": "...", "server": 3, "compression": "2",
+ *   "data": {
+ *     "cards": {
+ *       "ids": "<base64>",              // 全部卡 ID，自定义编码
+ *       "levels":  [卡ID, 等级, 卡ID, 等级, ...],
+ *       "skills":  [...], "masters": [...], "eps": [...],
+ *       "trains": [...], "arts": [...], "excludes": [...]
+ *     },
+ *     "items": { "Roselia": [道具ID, 等级], "Magazine": [3, 7], ... }
+ *   } }
+ * ```
+ *
+ * **`ids` 那串是自定义压缩**（838 字节 / 419 张卡，16 位小端、严格递减，
+ * 但数值对不上卡号，zlib/gzip/deflate 都不匹配）。**我们解不开，也不冒险重编**。
+ *
+ * 所以策略是：**必须先在弹层里"导入你的 Bestdori 档案"**，我们保存原
+ * `ids` 原样回写，只重写能算准的部分（levels / skills / items 等成对数组）。
+ * 这样卡池列表不会被破坏，导出的文件官网能正常吃。
+ */
+let ORIGINAL_PROFILE = null;
+
+/** 解析导入的 Bestdori 档案，拿回原始 ids 与已有 items */
+function parseImportedProfile(text) {
+  const j = JSON.parse(text);
+  if (!j?.data?.cards) throw new Error('不像 Bestdori 档案：缺少 data.cards');
+  ORIGINAL_PROFILE = j;
+  // items 是 [id, level, id, level...]，读出来填进 UI 用
+  const items = j.data.items || {};
+  return { items, cardCount: (j.data.cards.ids || '').length ? '有' : '空' };
+}
+
+/** 把 [id, level, ...] 两两拆成对象，便于读 */
+function pairsToMap(arr) {
+  const m = {};
+  for (let i = 0; i + 1 < (arr || []).length; i += 2) m[arr[i]] = arr[i + 1];
+  return m;
+}
+
+/** 把 {id: value} 摊平成 Bestdori 要的 [id, value, id, value, ...] */
+function mapToPairs(map) {
+  return Object.entries(map).flatMap(([k, v]) => [Number(k), v]);
+}
+
+function buildProfileForImport(serverKey, itemsBySlot = {}) {
+  const inv = invList().filter((x) => x.cardId != null);
+  const levels = {}, skills = {}, masters = {}, eps = {}, trains = {}, arts = {};
+  const excludes = {};
+
+  for (const x of inv) {
+    const meta = S.meta?.cards?.[String(x.cardId)];
+    const limit = Number(meta?.ll) || 60;
+    const trainBonus = Number(meta?.tl) || 0;
+    const trainable = Number(meta?.tr) === 1;
+    const trained = Boolean(x.trained) && trainable;
+    levels[x.cardId] = trained ? limit + trainBonus : limit;
+    skills[x.cardId] = 5;
+    masters[x.cardId] = 5;
+    eps[x.cardId] = trained ? 2 : 1;
+    trains[x.cardId] = trained ? 1 : 0;
+    arts[x.cardId] = trained ? 1 : 0;
+    excludes[x.cardId] = false;
+  }
+
+  // items：优先用传进来的设置，否则沿用导入档案里的原值
+  const items = {};
+  for (const slot of ITEM_SLOTS) {
+    const v = itemsBySlot[slot];
+    items[slot] = Array.isArray(v) ? v : (ORIGINAL_PROFILE?.data?.items?.[slot] || []);
+  }
+  // potentials（角色潜在能力）原样保留
+  if (ORIGINAL_PROFILE?.data?.items?.potentials) {
+    items.potentials = ORIGINAL_PROFILE.data.items.potentials;
+  }
+
   return {
-    server: SERVER_INDEX[serverKey] ?? 3,
-    name: 'BestdoriHelper 导出',
-    cards: invList()
-      .filter((x) => x.cardId != null)
-      .map((x) => newCardEntryFor(x)),
-    items: Object.fromEntries(ITEM_SLOTS.map((k) => [k, []])),
+    name: ORIGINAL_PROFILE?.name || 'BestdoriHelper 导出',
+    server: SERVER_INDEX[serverKey] ?? ORIGINAL_PROFILE?.server ?? 3,
+    compression: ORIGINAL_PROFILE?.compression || '2',
+    data: {
+      cards: {
+        // 原样回写 —— 这是我们解不开、也绝不能编错的部分
+        ids: ORIGINAL_PROFILE?.data?.cards?.ids || '',
+        levels: mapToPairs(levels),
+        skills: mapToPairs(skills),
+        masters: mapToPairs(masters),
+        eps: mapToPairs(eps),
+        trains: mapToPairs(trains),
+        arts: mapToPairs(arts),
+        excludes: Object.entries(excludes).flatMap(([k, v]) => [Number(k), v]),
+      },
+      items,
+    },
   };
 }
 
@@ -828,6 +921,11 @@ async function exportProfileForImport() {
        ③ Import → 粘贴 → 确认。<br>
        等级/技能/剧情数无法从截图判断，填的是满值 —— <strong>只影响算分，不影响卡牌归属</strong>，
        需要精确的话在官网改一下即可。</p>
+     <div class="btn-row">
+       <button class="small" id="btnImportProfile">导入我的 Bestdori 档案…</button>
+       <input type="file" id="importProfileFile" accept="application/json,.txt" hidden>
+       <span class="footnote" id="importProfileHint">必做：保留卡片编码，否则官网读不出你的卡池</span>
+     </div>
      <div class="field"><label for="profileText">档案内容（只读）</label>
        <textarea id="profileText" readonly rows="8"></textarea></div>
      <div class="btn-row">
@@ -843,6 +941,22 @@ async function exportProfileForImport() {
   };
   refresh();
   $('profileServer').onchange = (e) => { serverKey = e.target.value; refresh(); };
+
+  $('btnImportProfile').onclick = () => $('importProfileFile').click();
+  $('importProfileFile').onchange = async (e) => {
+    const f = e.target.files?.[0];
+    if (!f) return;
+    try {
+      const { items } = parseImportedProfile(await f.text());
+      const n = Object.keys(items || {}).length;
+      $('importProfileHint').textContent =
+        `已导入（${n} 组道具数据）`;
+      refresh();
+    } catch (err) {
+      $('importProfileHint').textContent = '导入失败：' + err.message;
+    }
+    e.target.value = '';
+  };
 
   $('btnProfileCopy').onclick = async () => {
     try {
@@ -879,7 +993,7 @@ function exportMarkdown() {
 
 // ---- 导航（底部栏 / 侧边栏 + 分页）-------------------------------------
 
-const TABS = ['import', 'result', 'inventory', 'sync'];
+const TABS = ['import', 'result', 'inventory', 'team', 'sync'];
 
 // ===== 通用弹层：看大图 / 卡牌详情 =====
 //
@@ -1260,6 +1374,12 @@ function showTab(name) {
   });
   // 切页时把内容区滚回顶部，否则从长列表切过去会停在半空
   $('main').scrollTop = 0;
+  // 组队页按需加载（team.json + songs.json 有 400 多 KB，不必首屏就拉）
+  if (name === 'team') {
+    import('./src/team-ui.js')
+      .then((m) => { m.bindTeamTab(); m.initTeamTab(); })
+      .catch((e) => console.error('[team] 加载失败', e));
+  }
   // 结果页的原图是按容器宽度缩放的，切过去时重新量一次
   if (name === 'result') renderPreview();
 }

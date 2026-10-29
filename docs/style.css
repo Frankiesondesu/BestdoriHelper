@@ -875,3 +875,11 @@ a { color: var(--info); }
   font-size: 11px;
 }
 .lb-body p.footnote { line-height: 1.65; }
+
+/* 组队结果里的队员缩略图：一行 5 张，小尺寸并排 */
+.tm-team { display: flex; gap: 5px; }
+.tm-team img {
+  width: 46px; height: 46px; border-radius: 7px; flex: none;
+  object-fit: cover; background: var(--panel-2);
+  border: 1px solid var(--border-2);
+}

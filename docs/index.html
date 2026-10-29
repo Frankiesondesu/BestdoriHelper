@@ -159,6 +159,109 @@
       <div id="invBody"><div class="empty">识别出卡牌后，可在这里确认并导出</div></div>
     </section>
 
+    <!-- ===== 组队（出分计算） =====
+         按游戏实际计分规律：综合力 × Lv加成 × 300%，再逐 NOTE 叠技能/COMBO/判定。
+         卡池用「清单」里已识别的卡 —— 不用手填。 -->
+    <section class="view" id="view-team" data-view="team">
+      <div class="card">
+        <div class="card-label">组队条件</div>
+        <div class="field-row">
+          <div class="field"><label for="tmDiff">难度</label>
+            <select id="tmDiff">
+              <option value="expert" selected>Expert</option>
+              <option value="hard">Hard</option>
+              <option value="normal">Normal</option>
+              <option value="easy">Easy</option>
+              <option value="special">Special</option>
+            </select></div>
+          <div class="field"><label>歌曲</label>
+            <button class="small" id="tmPickSong" style="width:100%">选择歌曲…</button>
+            <div class="footnote" id="tmSongPicked" style="margin-top:5px">未选择</div>
+            <select id="tmSong" hidden></select></div>
+        </div>
+        <div class="field-row">
+          <div class="field"><label for="tmEvent">活动</label>
+            <select id="tmEvent"><option value="">不计活动加成</option></select></div>
+          <div class="field"><label for="tmSkillLv">技能等级</label>
+            <select id="tmSkillLv">
+              <option value="1">1</option><option value="2">2</option>
+              <option value="3">3</option><option value="4">4</option>
+              <option value="5" selected>5</option>
+            </select></div>
+          <div class="field"><label for="tmRank">角色评级</label>
+            <select id="tmRank">
+              <option value="0">0%</option><option value="0.05">5%</option>
+              <option value="0.11" selected>11%</option>
+            </select></div>
+        </div>
+
+        <div class="card-label" style="margin-top:6px">区域道具
+          <span class="footnote">按游戏的三组分开填，留 0 = 没点</span></div>
+        <div class="footnote" id="tmItemInfo" style="margin:-2px 0 6px"></div>
+        <div class="field-row">
+          <div class="field"><label for="tmBandSel">乐队道具</label>
+            <select id="tmBandSel"><option value="">（不指定）</option></select>
+            <input type="number" id="tmBand" value="0" min="0" max="100" step="0.5"></div>
+          <div class="field"><label for="tmAttrSel">属性道具</label>
+            <select id="tmAttrSel">
+              <option value="">（不指定）</option>
+              <option value="powerful">Powerful</option>
+              <option value="cool">Cool</option>
+              <option value="pure">Pure</option>
+              <option value="happy">Happy</option>
+            </select>
+            <input type="number" id="tmAttr" value="0" min="0" max="100" step="0.5"></div>
+          <div class="field"><label for="tmMag">杂志（全队）</label>
+            <input type="number" id="tmMag" value="0" min="0" max="100" step="0.5"></div>
+        </div>
+        <div class="btn-row">
+          <button class="small primary" id="tmRun">计算最优队伍</button>
+          <button class="small" id="tmExport">导出设置</button>
+          <button class="small" id="tmImport">导入设置</button>
+          <input type="file" id="tmImportFile" accept="application/json" hidden>
+          <span class="footnote" id="tmHint"></span>
+        </div>
+        <div class="btn-row">
+          <button class="small" id="tmImportProfile">导入 Bestdori 档案…</button>
+          <button class="small" id="tmOcrItems">识别道具截图…</button>
+          <button class="small" id="tmImportItems">导入道具 JSON…</button>
+          <input type="file" id="tmOcrFiles" accept="image/*" multiple hidden>
+          <button class="small" id="tmClearProfile" hidden>改用清单卡池</button>
+          <input type="file" id="tmProfileFile" accept="application/json,.txt" hidden>
+          <input type="file" id="tmItemsFile" accept="application/json" hidden>
+        </div>
+        <p class="footnote">
+          卡池：<span id="tmPoolSource">清单里已识别的卡</span>（共 <span id="tmPoolCount">0</span> 张）。
+          想换卡池，先在「结果」页把卡确认/忽略好；或者直接导入你的 Bestdori 档案。
+        </p>
+      </div>
+      <div id="tmBody"><div class="empty">选好歌曲后点「计算最优队伍」</div></div>
+    </section>
+
+    <!-- 选歌弹窗：用现有的 .lightbox 作用浮层（position:fixed; inset:0; z-index:60） -->
+    <div class="lightbox" id="songLb" hidden role="dialog" aria-modal="true">
+      <div class="lb-head" style="flex-wrap:wrap;gap:8px">
+        <span style="font-weight:700;flex:none">选择歌曲</span>
+        <input type="search" id="songSearch" placeholder="搜曲名…"
+               style="flex:1 1 160px;min-width:120px">
+        <select id="songBand" style="flex:none">
+          <option value="">全部乐队</option>
+        </select>
+        <select id="songDiff" style="flex:none">
+          <option value="expert" selected>Expert</option>
+          <option value="hard">Hard</option>
+          <option value="normal">Normal</option>
+          <option value="easy">Easy</option>
+          <option value="special">Special</option>
+        </select>
+        <button class="small" id="songLbClose" style="flex:none">关闭</button>
+      </div>
+      <div class="lb-body" style="overflow:auto;padding:10px 12px calc(var(--sab) + 12px)">
+        <div id="songList" style="display:flex;flex-direction:column;gap:6px;max-width:720px;margin:0 auto"></div>
+        <div id="songMore" class="footnote" style="text-align:center;margin-top:10px"></div>
+      </div>
+    </div>
+
     <!-- ===== 同步 ===== -->
     <section class="view" id="view-sync" data-view="sync">
       <div class="card" id="syncCard" hidden>
@@ -258,6 +361,13 @@
       </svg>
       <span>清单</span>
       <em class="badge" id="badgeInventory" hidden></em>
+    </button>
+    <button class="navitem" data-tab="team">
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M12 3l7 4v5c0 4.6-3 8.2-7 9-4-0.8-7-4.4-7-9V7l7-4z"/>
+        <path d="M9 12.5l2 2 4-4.5"/>
+      </svg>
+      <span>组队</span>
     </button>
     <button class="navitem" data-tab="sync">
       <svg viewBox="0 0 24 24" aria-hidden="true">
