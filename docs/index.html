@@ -223,12 +223,9 @@
         </div>
         <div class="btn-row">
           <button class="small" id="tmImportProfile">导入 Bestdori 档案…</button>
-          <button class="small" id="tmOcrItems">识别道具截图…</button>
-          <button class="small" id="tmImportItems">导入道具 JSON…</button>
-          <input type="file" id="tmOcrFiles" accept="image/*" multiple hidden>
+          <button class="small" id="tmGoItems">去「道具」页识别…</button>
           <button class="small" id="tmClearProfile" hidden>改用清单卡池</button>
           <input type="file" id="tmProfileFile" accept="application/json,.txt" hidden>
-          <input type="file" id="tmItemsFile" accept="application/json" hidden>
         </div>
         <p class="footnote">
           卡池：<span id="tmPoolSource">清单里已识别的卡</span>（共 <span id="tmPoolCount">0</span> 张）。
@@ -261,6 +258,49 @@
         <div id="songMore" class="footnote" style="text-align:center;margin-top:10px"></div>
       </div>
     </div>
+
+    <!-- ===== 道具（截图识别） =====
+         从游戏「商店 / 咖啡厅」截图里读出道具等级。识别结果存 localStorage，
+         组队页会自动采用，无需重复输入。 -->
+    <section class="view" id="view-items" data-view="items">
+      <div class="card">
+        <div class="card-label">识别道具截图
+          <span class="footnote">读商店 / 咖啡厅截图里的「等级X」</span></div>
+        <p class="footnote" style="margin:6px 0 10px">
+          支持一次选多张。首次识别需下载中文识别模型（约 10MB），之后走缓存。
+        </p>
+        <div class="btn-row">
+          <button class="small primary" id="itPick">选择截图…</button>
+          <button class="small" id="itImportJson">导入 JSON…</button>
+          <button class="small" id="itClear">清空结果</button>
+          <input type="file" id="itFiles" accept="image/*" multiple hidden>
+          <input type="file" id="itJsonFile" accept="application/json" hidden>
+        </div>
+        <div class="footnote" id="itProgress" style="margin-top:8px"></div>
+      </div>
+
+      <div class="card" id="itResult">
+        <div class="card-label">道具等级</div>
+        <div id="itTable"><div class="empty">还没有数据。选几张截图，或导入 my-items.json。</div></div>
+      </div>
+
+      <div class="card">
+        <div class="card-label">换算成百分比</div>
+        <p class="footnote" style="margin:6px 0 10px">
+          档案与截图里存的是**道具等级（1~8）**，不是加成百分比。
+          这里按「每级 1.5%」估算，可手动改——组队页会直接用这三个值。
+        </p>
+        <div class="field-row">
+          <div class="field"><label for="itBandPct">乐队道具</label>
+            <input type="number" id="itBandPct" value="0" min="0" max="100" step="0.5"></div>
+          <div class="field"><label for="itAttrPct">属性道具</label>
+            <input type="number" id="itAttrPct" value="0" min="0" max="100" step="0.5"></div>
+          <div class="field"><label for="itMagPct">杂志</label>
+            <input type="number" id="itMagPct" value="0" min="0" max="100" step="0.5"></div>
+        </div>
+        <div class="btn-row"><button class="small primary" id="itSavePct">保存</button></div>
+      </div>
+    </section>
 
     <!-- ===== 同步 ===== -->
     <section class="view" id="view-sync" data-view="sync">
@@ -368,6 +408,12 @@
         <path d="M9 12.5l2 2 4-4.5"/>
       </svg>
       <span>组队</span>
+    </button>
+    <button class="navitem" data-tab="items">
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M4 8h16M4 16h16M8 4v16M16 4v16"/>
+      </svg>
+      <span>道具</span>
     </button>
     <button class="navitem" data-tab="sync">
       <svg viewBox="0 0 24 24" aria-hidden="true">

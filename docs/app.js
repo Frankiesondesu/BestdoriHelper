@@ -993,7 +993,7 @@ function exportMarkdown() {
 
 // ---- 导航（底部栏 / 侧边栏 + 分页）-------------------------------------
 
-const TABS = ['import', 'result', 'inventory', 'team', 'sync'];
+const TABS = ['import', 'result', 'inventory', 'team', 'items', 'sync'];
 
 // ===== 通用弹层：看大图 / 卡牌详情 =====
 //
@@ -1375,6 +1375,11 @@ function showTab(name) {
   // 切页时把内容区滚回顶部，否则从长列表切过去会停在半空
   $('main').scrollTop = 0;
   // 组队页按需加载（team.json + songs.json 有 400 多 KB，不必首屏就拉）
+  if (name === 'items') {
+    import('./src/items-ui.js')
+      .then((m) => m.initItemsTab())
+      .catch((e) => console.error('[items] 加载失败', e));
+  }
   if (name === 'team') {
     import('./src/team-ui.js')
       .then((m) => { m.bindTeamTab(); m.initTeamTab(); })

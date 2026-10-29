@@ -365,63 +365,11 @@ function bindProfileImport() {
     }
     e.target.value = '';
   };
-  // 浏览器内 OCR：选截图 -> 逐张识别 -> 合并 -> 自动填
-  if ($('tmOcrItems')) {
-    $('tmOcrItems').onclick = () => $('tmOcrFiles').click();
-    $('tmOcrFiles').onchange = async (e) => {
-      const files = [...(e.target.files || [])];
-      if (!files.length) return;
-      const hint = $('tmHint');
-      const merged = {};
-      const detail = [];
-      const failed = [];
-      try {
-        for (let i = 0; i < files.length; i++) {
-          hint.textContent = `识别中 ${i + 1}/${files.length}…（首次需下载识别模型，约 10MB）`;
-          const lines = await recognizeImage(files[i], (p) => {
-            hint.textContent = `识别中 ${i + 1}/${files.length}… ${Math.round(p * 100)}%`;
-          });
-          const r = parseOcrLines(text);
-          for (const [slot, lv] of Object.entries(r.items)) {
-            if (!(slot in merged) || lv > merged[slot]) merged[slot] = lv;
-          }
-          detail.push(...r.detail);
-          if (!r.detail.length) failed.push(files[i].name);
-        }
-        if (!Object.keys(merged).length) {
-          hint.textContent = '没识别出道具，换更清晰的截图试试';
-        } else {
-          applyProfileItems(Object.fromEntries(
-            Object.entries(merged).map(([k, v]) => [k, [0, v]])));
-          hint.textContent = `识别完成：${Object.keys(merged).length} 个槽位`
-            + (failed.length ? `，${failed.length} 张没读出` : '');
-          persist();
-        }
-      } catch (err) {
-        hint.textContent = 'OCR 失败：' + err.message;
-      }
-      e.target.value = '';
-    };
-  }
-
-  // 导入桌面 OCR 产出的 my-items.json（{items: {槽位: [道具id, 等级]}}）
-  if ($('tmImportItems')) {
-    $('tmImportItems').onclick = () => $('tmItemsFile').click();
-    $('tmItemsFile').onchange = async (e) => {
-      const f = e.target.files?.[0];
-      if (!f) return;
-      try {
-        const data = JSON.parse(await f.text());
-        const items = data.items || data;
-        applyProfileItems(items);
-        const n = Object.keys(items).length;
-        $('tmHint').textContent = `已导入 ${n} 个槽位的道具`;
-        persist();
-        setTimeout(() => { $('tmHint').textContent = ''; }, 3000);
-      } catch (err) {
-        $('tmHint').textContent = '导入失败：' + err.message;
-      }
-      e.target.value = '';
+  // 道具识别已独立成「道具」页；这里只负责把结果显示出来 + 提供跳转
+  if ($('tmGoItems')) {
+    $('tmGoItems').onclick = () => {
+      const nav = document.querySelector('.navitem[data-tab="items"]');
+      if (nav) nav.click();
     };
   }
 
@@ -512,6 +460,18 @@ export async function initTeamTab() {
   restore();
   bindPersistence();
   bindProfileImport();
+
+  // 道具页存的结果（bdh.items.v1）：有的话回填明细和百分比
+  try {
+    const rawItems = localStorage.getItem('bdh.items.v1');
+    if (rawItems) {
+      const items = JSON.parse(rawItems);
+      if (items && Object.keys(items).length) {
+        applyProfileItems(Object.fromEntries(
+          Object.entries(items).map(([k, v]) => [k, [0, v]])));
+      }
+    }
+  } catch { /* 坏数据忽略 */ }
   if (PROFILE) {
     $('tmPoolSource').textContent = `档案（${PROFILE.note}）`;
     $('tmClearProfile').hidden = false;
