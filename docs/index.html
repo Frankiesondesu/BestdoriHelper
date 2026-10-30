@@ -221,16 +221,26 @@
           <input type="file" id="tmImportFile" accept="application/json" hidden>
           <span class="footnote" id="tmHint"></span>
         </div>
+        <div class="card-label" style="margin-top:4px">卡池来源</div>
+        <div id="tmPoolBox" style="display:flex;align-items:center;gap:10px;
+             padding:10px 12px;border-radius:10px;border:1px solid var(--border-2);
+             background:var(--panel-2);margin-bottom:10px">
+          <span id="tmPoolBadge" style="flex:none;padding:3px 9px;border-radius:999px;
+                font-size:12px;font-weight:700;background:#3a3f52;color:#c9cfe0">清单</span>
+          <span style="flex:1;min-width:0">
+            <span id="tmPoolSource" style="display:block;font-size:13px">清单里已识别的卡</span>
+            <span class="footnote" style="display:block;margin-top:2px">
+              共 <b id="tmPoolCount">0</b> 张 ·
+              <span id="tmPoolHint">导入档案会覆盖清单，得到完整卡池</span>
+            </span>
+          </span>
+        </div>
         <div class="btn-row">
-          <button class="small" id="tmImportProfile">导入 Bestdori 档案…</button>
+          <button class="small primary" id="tmImportProfile">导入完整档案…</button>
           <button class="small" id="tmGoItems">去「道具」页识别…</button>
-          <button class="small" id="tmClearProfile" hidden>改用清单卡池</button>
+          <button class="small" id="tmClearProfile" hidden>改回清单卡池</button>
           <input type="file" id="tmProfileFile" accept="application/json,.txt" hidden>
         </div>
-        <p class="footnote">
-          卡池：<span id="tmPoolSource">清单里已识别的卡</span>（共 <span id="tmPoolCount">0</span> 张）。
-          想换卡池，先在「结果」页把卡确认/忽略好；或者直接导入你的 Bestdori 档案。
-        </p>
       </div>
       <div class="card" id="tmImported" hidden>
         <div class="card-label">已导入的数据

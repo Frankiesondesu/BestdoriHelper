@@ -355,7 +355,7 @@ function bindProfileImport() {
       PROFILE = parseProfile(json, { maxCardId: 999999 });
       applyProfileItems(PROFILE.items);
       const pool0 = pool();
-      $('tmPoolSource').textContent = `档案（${PROFILE.note}）`;
+      setPoolSource('profile', PROFILE.note);
       $('tmPoolCount').textContent = pool0.length;
       $('tmClearProfile').hidden = false;
       renderImported(pool0);
@@ -379,6 +379,8 @@ function bindProfileImport() {
     $('tmPoolCount').textContent = pool().length;
     $('tmClearProfile').hidden = true;
     if ($('tmImported')) $('tmImported').hidden = true;
+    setPoolSource('list');
+    $('tmPoolCount').textContent = pool().length;
     persist();
   };
 }
@@ -414,6 +416,27 @@ function describeItems(items) {
     parts.push(`${ITEM_SLOTS_CN[slot] || slot} Lv${lv}`);
   }
   return parts;
+}
+
+/** 卡池来源标识：档案（完整）/ 清单（识图兜底） */
+function setPoolSource(kind, note) {
+  const badge = $('tmPoolBadge');
+  const src = $('tmPoolSource');
+  const hint = $('tmPoolHint');
+  if (!badge) return;
+  if (kind === 'profile') {
+    badge.textContent = '完整档案';
+    badge.style.background = '#2d5a3d';
+    badge.style.color = '#9fe0b0';
+    src.textContent = note || '导入的档案';
+    if (hint) hint.textContent = '已覆盖清单，计算用这套卡池';
+  } else {
+    badge.textContent = '清单';
+    badge.style.background = '#3a3f52';
+    badge.style.color = '#c9cfe0';
+    src.textContent = '清单里已识别的卡';
+    if (hint) hint.textContent = '导入档案会覆盖清单，得到完整卡池';
+  }
 }
 
 /** 导入后把「你到底导进来了什么」摊开给人看 */
@@ -524,8 +547,10 @@ export async function initTeamTab() {
     }
   } catch { /* 坏数据忽略 */ }
   if (PROFILE) {
-    $('tmPoolSource').textContent = `档案（${PROFILE.note}）`;
+    setPoolSource('profile', PROFILE.note);
     $('tmClearProfile').hidden = false;
+  } else {
+    setPoolSource('list');
   }
   if (!$('tmSong').dataset.ready) {
     $('tmDiff').onchange = () => {
