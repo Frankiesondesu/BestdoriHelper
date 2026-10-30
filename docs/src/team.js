@@ -89,6 +89,7 @@ const BONUS_LIMIT = 12;
  */
 export function totalPower(team, opts = {}) {
   const charRank = opts.charRank ?? 0;
+  const chars = opts.characters || null;   // {角色ID: {n, b}}，用来补卡对象缺的乐队
   // 角色潜力（来自 Bestdori 档案的 items.potentials）：{角色ID: 值}
   // 有的话按角色分别加成，否则退回统一 charRank。
   const potentials = opts.potentials || null;
@@ -131,8 +132,11 @@ export function totalPower(team, opts = {}) {
     const s = c.sx || [0, 0, 0];
     const e = c.ep || [0, 0, 0];
     const area = opts.area || {};
+    // ⚠️ 卡对象来自 team.json，**只有 ch/r/a/sk/sx 等，没有 band 字段**。
+    // 直接比较 c.band 会永远 false，导致乐队道具静默失效（实测踩过）。
+    const cardBand = c.band ?? chars?.[c.ch]?.b;
     let areaBonus = 0;
-    if (area.bandBand === undefined || area.bandBand === c.band) areaBonus += (area.band || 0);
+    if (area.bandBand === undefined || area.bandBand === cardBand) areaBonus += (area.band || 0);
     if (!area.attrAttr || area.attrAttr === c.a) areaBonus += (area.attr || 0);
     areaBonus += (area.magazine || 0);
     if (typeof opts.areaBonus === 'number') areaBonus = opts.areaBonus;
@@ -451,7 +455,7 @@ export function eventPoints(score, event, opt = {}) {
  * @param {{topN?:number, poolLimit?:number}} [opt]
  * @returns {{team:object[], score:number, power:number}[]}
  */
-export function bestTeams(pool, parsed, ctx, opt = {}) {
+export async function bestTeams(pool, parsed, ctx, opt = {}) {
   const topN = opt.topN ?? 10;
   // ⚠️ 默认按**分数**排会把"综合力高但没吃活动加成"的队排前面，
   // 真正能拿点数的反而被挤出 TopN。要追活动点时必须传 sortBy: 'points'。
@@ -482,16 +486,33 @@ export function bestTeams(pool, parsed, ctx, opt = {}) {
 
   const results = [];
   const n = ranked.length;
+  // 组合总数，用来算进度
+  let total = 0;
+  for (let a = 0; a < n - 4; a++) total += (n - a - 1) * (n - a - 2) * (n - a - 3) * (n - a - 4) / 24;
+  let done = 0;
+  const onProgress = opt.onProgress || null;
   for (let a = 0; a < n - 4; a++) {
     for (let b = a + 1; b < n - 3; b++) {
       for (let c = b + 1; c < n - 2; c++) {
         for (let d = c + 1; d < n - 1; d++) {
           for (let e = d + 1; e < n; e++) {
+            done += 1;
+            // **必须真正让出主线程**：只调回调不解阻塞，页面仍然冻住。
+            // 每 400 组合 await 一次 setTimeout(0)，浏览器才有机会重绘进度。
+            // 每 2000 组合让出一次：400 太频繁，await 本身的开销比计算还大
+            // （实测 400 时整轮 25s，2000 后约 5s）。
+            if (done % 2000 === 0) {
+              if (onProgress) onProgress(done / total);
+              await new Promise((r) => setTimeout(r, 0));
+            }
             const five = [ranked[a], ranked[b], ranked[c], ranked[d], ranked[e]];
-            // 5 张都试一遍当 C 位（队长技能会返场，C 位很关键）
+            // 只试技能最强的 2 张当 C 位。返场技能由队长发动，技能弱的卡当队长
+            // 一定更差；全试 5 张等于把枚举量乘 5，收益却为零。
+            const bySkill = [...five].sort((x, y) =>
+              ((ctx.skills?.[String(y.sk)]?.up) || 0) - ((ctx.skills?.[String(x.sk)]?.up) || 0));
             let best = null;
-            for (let cap = 0; cap < 5; cap++) {
-              const team = [five[cap], ...five.filter((_, i) => i !== cap)];
+            for (const capCard of bySkill.slice(0, 2)) {
+              const team = [capCard, ...five.filter((x) => x !== capCard)];
               const r = scoreTeam(team, parsed, ctx);
               if (!best || r.score > best.score) best = { team, ...r };
             }
@@ -510,6 +531,7 @@ export function bestTeams(pool, parsed, ctx, opt = {}) {
     }
   }
 
+  if (onProgress) onProgress(1);
   results.sort((a, b) => {
     if (sortBy === 'points') {
       // 点数有上限（分数够 150 万就封顶），封顶后只能靠加成拉开差距，

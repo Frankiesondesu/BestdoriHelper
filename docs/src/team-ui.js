@@ -630,9 +630,27 @@ export async function runTeamCalc() {
       event: ev,
     };
 
-    // 组合枚举是同步的，交给下一帧再跑，别把「计算中」卡住
-    await new Promise((r) => setTimeout(r, 0));
-    let results = bestTeams(p, parsed, ctx, { topN: 30 });
+    // 分片枚举：边算边刷进度，避免页面看起来卡死
+    $('tmBody').innerHTML = `
+      <div class="card">
+        <div class="card-label">正在计算…</div>
+        <div style="height:6px;border-radius:3px;background:var(--panel-2);
+                    overflow:hidden;margin:10px 0">
+          <div id="tmProg" style="height:100%;width:0%;background:var(--accent);
+               transition:width .12s linear"></div>
+        </div>
+        <div class="footnote" id="tmProgTxt">候选 ${p.length} 张，正在枚举组合…</div>
+      </div>`;
+    let results = await bestTeams(p, parsed, ctx, {
+      topN: 30,
+      onProgress: (f) => {
+        const bar = $('tmProg');
+        if (bar) bar.style.width = `${Math.round(f * 100)}%`;
+        const t = $('tmProgTxt');
+        if (t) t.textContent =
+          `枚举组合 ${Math.round(f * 100)}%（卡池 ${p.length} 张，取三围前 12 + 加成前 12 枚举）`;
+      },
+    });
 
     // 活动点数：逐卡算加成，取全队平均（与游戏结算的加成口径一致）
     if (ev) {
