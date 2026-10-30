@@ -354,11 +354,11 @@ function bindProfileImport() {
       const json = JSON.parse(await f.text());
       PROFILE = parseProfile(json, { maxCardId: 999999 });
       applyProfileItems(PROFILE.items);
-      const potN = Object.keys(PROFILE.potentials || {}).length;
-      $('tmPoolSource').textContent =
-        `档案（${PROFILE.note}${potN ? `，${potN} 个角色潜力` : ''}）`;
-      $('tmPoolCount').textContent = pool().length;
+      const pool0 = pool();
+      $('tmPoolSource').textContent = `档案（${PROFILE.note}）`;
+      $('tmPoolCount').textContent = pool0.length;
       $('tmClearProfile').hidden = false;
+      renderImported(pool0);
       persist();
     } catch (err) {
       $('tmHint').textContent = '导入失败：' + err.message;
@@ -378,6 +378,7 @@ function bindProfileImport() {
     $('tmPoolSource').textContent = '清单里已识别的卡';
     $('tmPoolCount').textContent = pool().length;
     $('tmClearProfile').hidden = true;
+    if ($('tmImported')) $('tmImported').hidden = true;
     persist();
   };
 }
@@ -413,6 +414,56 @@ function describeItems(items) {
     parts.push(`${ITEM_SLOTS_CN[slot] || slot} Lv${lv}`);
   }
   return parts;
+}
+
+/** 导入后把「你到底导进来了什么」摊开给人看 */
+function renderImported(list) {
+  const box = $('tmImported');
+  const body = $('tmImportedBody');
+  if (!box || !body) return;
+  if (!list || !list.length) { box.hidden = true; return; }
+
+  const byAttr = {}, byBand = {}, byRarity = {};
+  for (const c of list) {
+    const ch = TEAM.characters?.[String(c.ch)] || {};
+    byAttr[c.a] = (byAttr[c.a] || 0) + 1;
+    const b = ch.b || '其他';
+    byBand[b] = (byBand[b] || 0) + 1;
+    byRarity[c.r] = (byRarity[c.r] || 0) + 1;
+  }
+  const chip = (k, v) => `<span style="display:inline-block;padding:2px 9px;margin:2px 5px 2px 0;
+      border-radius:999px;background:var(--panel-2);border:1px solid var(--border-2);
+      font-size:12px">${k} <b>${v}</b></span>`;
+  const rows = (obj, fmt) => Object.entries(obj).sort((a, b) => b[1] - a[1])
+    .map(([k, v]) => chip(fmt(k), v)).join('');
+
+  const potN = Object.keys(PROFILE?.potentials || {}).length;
+  const itemN = Object.keys(PROFILE?.items || {})
+    .filter((k) => k !== 'potentials').length;
+
+  $('tmImportedMeta').textContent =
+    `卡 ${list.length} 张 · 道具 ${itemN} 组 · 潜能 ${potN} 个角色`;
+
+  body.innerHTML = `
+    <div style="font-size:12px;color:var(--text-dim);margin-bottom:4px">属性</div>
+    <div>${rows(byAttr, (k) => k)}</div>
+    <div style="font-size:12px;color:var(--text-dim);margin:10px 0 4px">乐队</div>
+    <div>${rows(byBand, (k) => k.replace('Hello, Happy World!', 'HHW').replace('Pastel*Palettes', 'PasPare').split(' ')[0])}</div>
+    <div style="font-size:12px;color:var(--text-dim);margin:10px 0 4px">稀有度</div>
+    <div>${rows(byRarity, (k) => k + '★')}</div>
+    <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:12px">
+      ${list.slice(0, 24).map((c) => {
+        const ch = TEAM.characters?.[String(c.ch)] || {};
+        const nm = (ch.n || '?').replace(/\s/g, '');
+        return `<img src="data/thumbs/${c.id}_n.webp" alt="${nm}" title="卡${c.id} ${nm}"
+          loading="lazy" referrerpolicy="no-referrer"
+          onerror="this.onerror=null;this.style.opacity=.2"
+          style="width:52px;height:52px;border-radius:8px;object-fit:cover;
+                 background:var(--panel-2);border:1px solid var(--border-2)">`;
+      }).join('')}
+      ${list.length > 24 ? `<span class="footnote" style="align-self:center">…共 ${list.length} 张</span>` : ''}
+    </div>`;
+  box.hidden = false;
 }
 
 function applyProfileItems(items) {

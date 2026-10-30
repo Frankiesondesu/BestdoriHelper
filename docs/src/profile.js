@@ -165,8 +165,18 @@ export function parseItems(itemsRaw) {
  * }}
  */
 export function parseProfile(json, opt = {}) {
+  // 兼容我们自己导出的「可读配置」（{_type:'bdh-my-config', rawProfile:{...}}）：
+  // 里面 rawProfile 才是 Bestdori 原始档案，直接换进去再走正常流程。
+  if (json && json._type === 'bdh-my-config' && json.rawProfile) {
+    return parseProfile(json.rawProfile, opt);
+  }
   const data = json?.data;
-  if (!data?.cards) throw new Error('不像 Bestdori 档案：缺少 data.cards');
+  if (!data?.cards) {
+    const keys = Object.keys(json || {}).slice(0, 6).join(', ');
+    throw new Error(
+      `不认识的档案格式（顶层键：${keys}）。`
+      + '需要 Bestdori「导出资料」得到的 JSON，或者本工具保存的 my-config.json。');
+  }
 
   const maxCardId = opt.maxCardId ?? 3000;
   const c = data.cards;

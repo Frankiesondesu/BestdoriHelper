@@ -30,10 +30,18 @@ OUT = REPO / "docs" / "data" / "team.json"
 LANG_ZH = 3
 
 #: 乐队 id -> 名称。只有 9 个且极少变动，内置比多拉一次 API 划算。
+#: ⚠️ 这些编号**不是 1~9 顺排**，是从 characters.json 里实测出来的：
+#:   3=HHW、4=Pastel、5=Roselia（3 和 4 极易写反）
+#:   RAS=18、Morfonica=21、MyGO=45（不是 6/7/8）
 BANDS = {
-    1: "Poppin'Party", 2: "Afterglow", 3: "Pastel*Palettes", 4: "Roselia",
-    5: "Hello, Happy World!", 6: "Morfonica", 7: "RAISE A SUILEN",
-    8: "MyGO!!!!!", 9: "Ave Mujica",
+    1: "Poppin'Party",
+    2: "Afterglow",
+    3: "Hello, Happy World!",
+    4: "Pastel*Palettes",
+    5: "Roselia",
+    18: "RAISE A SUILEN",
+    21: "Morfonica",
+    45: "MyGO!!!!!",
 }
 
 
@@ -45,7 +53,9 @@ def skill_up_percent(descs: list[str]) -> int:
     这一点在 UI 上会注明）。
     """
     for text in (descs[LANG_ZH], descs[0] if descs else ""):
-        m = re.search(r"(\d+)\s*%", text or "")
+        # ⚠️ 游戏文案里全角「％」和半角「%」混用（"得分提升100％"），
+        # 只匹配半角会把一半技能读成 0。
+        m = re.search(r"(\d+)\s*[%％]", text or "")
         if m:
             return int(m.group(1))
     return 0
