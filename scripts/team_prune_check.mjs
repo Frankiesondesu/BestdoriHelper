@@ -1,9 +1,17 @@
 /**
  * 验证两阶段剪枝没有漏掉真正的最优解。
  *
- * 做法：对同一份候选池，用「全量精确枚举」和「bestTeams 的剪枝枚举」各算一遍，
- * 比较最优活动点数。剪枝版只要 **等于或接近** 全量版就算通过（剪枝是近似，
- * 但差距应该在 0.5% 以内）。
+ * 做法：拿**同一份候选池**（`buildCandidatePool` 的返回值），用「全量精确枚举」
+ * 和「bestTeams 的剪枝枚举」各算一遍，比较最优活动点数。
+ *
+ * 两条硬要求：
+ *
+ * 1. **输入必须同源。** 原先这里自己抄了一份候选池构造逻辑，两边一旦不同步，
+ *    对拍就变成「拿 A 的输入比 B 的输出」—— 看着全绿，其实什么都没证明。
+ *    现在两边都调 `buildCandidatePool`。
+ * 2. **口径必须一致。** 全量版必须像 `bestTeams` 一样把支援乐队算进点数，
+ *    否则 mission_live 会出现「剪枝版 PT 反而更高」的假差距（实测 -9.02%）。
+ *    为此负差距单独判定为**口径不一致**，不算通过。
  *
  * 用法：node scripts/team_prune_check.mjs
  */
@@ -18,9 +26,10 @@ const TEAM = D('team.json');
 const EVENTS = D('events.json');
 const SONGS = D('songs.json');
 
-const { bestTeams, eventBonusFor, eventPoints, scoreTeam, parseChart } = await import(
-  pathToFileURL(join(ROOT, 'docs/src/team.js')).href
-);
+const {
+  bestTeams, buildCandidatePool, eventBonusFor, eventPoints, pickSupportTeam,
+  prepareSupportPool, scoreTeam, parseChart,
+} = await import(pathToFileURL(join(ROOT, 'docs/src/team.js')).href);
 
 const songId = Object.keys(SONGS).find((k) => SONGS[k].lv?.expert >= 27) || Object.keys(SONGS)[0];
 const parsed = parseChart(D(`charts/expert/${songId}.json`));
@@ -31,8 +40,8 @@ const pool = Object.entries(TEAM.cards)
 
 console.log(`曲目 ${SONGS[songId].t} Lv.${songLevel} / ${parsed.notes.length} notes，卡池 ${pool.length} 张`);
 
-let worst = 0;
-// 取最近 3 期有成员加成的活动
+let worst = 0;         // 剪枝比全量差多少（正数才是真损失）
+let worstMismatch = 0; // 剪枝比全量好多少（说明两条路径口径不一致）
 const ids = Object.keys(EVENTS).sort((a, b) => Number(b) - Number(a))
   .filter((k) => (EVENTS[k].mb || []).length).slice(0, 3);
 
@@ -48,30 +57,12 @@ for (const eid of ids) {
   const fast = await bestTeams(pool, parsed, ctx, { topN: 1, characters: TEAM.characters });
   const dtFast = Date.now() - t1;
 
-  // ---- 全量精确版：候选池构造和 bestTeams 一致，但枚举全部组合 -------------
-  const withSum = pool.map((c) => ({ c, sum: c.sx.reduce((a, b) => a + b, 0) }))
-    .sort((a, b) => b.sum - a.sum);
-  const memberIds = new Set((ev.mb || []).map(Number));
-  const picked = new Map();
-  const charCnt = new Map();
-  const tryPick = (card) => {
-    const k = card.ch;
-    const used = charCnt.get(k) || 0;
-    if (used >= 2) return false;
-    charCnt.set(k, used + 1);
-    picked.set(card.id, card);
-    return true;
-  };
-  for (const x of withSum) { if (picked.size >= 8) break; if (!charCnt.get(x.c.ch)) tryPick(x.c); }
-  for (const x of withSum) { if (picked.size >= 8) break; tryPick(x.c); }
-  const scored = withSum.map((x) => ({ ...x, bonus: eventBonusFor(x.c, ev, 0).bonus }))
-    .filter((x) => x.bonus > 0);
-  for (const x of scored) if (memberIds.has(Number(x.c.id))) picked.set(x.c.id, x.c);
-  for (const x of scored.filter((x) => !memberIds.has(Number(x.c.id)))
-    .sort((a, b) => (b.bonus - a.bonus) || (b.sum - a.sum)).slice(0, 12)) picked.set(x.c.id, x.c);
-
-  const cand = [...picked.values()];
+  // ---- 全量精确版：候选池与剪枝版**同源**，只是不做截断 ---------------------
+  const cand = buildCandidatePool(pool, ctx);
   const n = cand.length;
+  // 支援乐队池与主队无关，按 solo 综合力排一次即可（和 bestTeams 内部一致）
+  const supportPool = ev.ty === 'mission_live' ? prepareSupportPool(pool, ctx) : null;
+
   let bestPt = 0, bestScore = 0, bestTeam = null;
   const t2 = Date.now();
   for (let a = 0; a < n - 4; a++) for (let b = a + 1; b < n - 3; b++)
@@ -87,19 +78,32 @@ for (const eid of ids) {
           const r = scoreTeam(team, parsed, ctx);
           // 进点数的是 5 张卡的加成**合计**，不是平均
           const bon = team.reduce((s, x) => s + eventBonusFor(x, ev, 0).bonus, 0);
-          const pt = eventPoints(r.score, ev, { bonusSum: bon, flame: 1 });
+          const sup = supportPool ? pickSupportTeam(supportPool, team, ctx) : null;
+          const pt = eventPoints(r.score, ev, {
+            bonusSum: bon, supportPower: sup ? sup.power : 0, flame: 1,
+          });
           if (pt > bestPt) { bestPt = pt; bestScore = r.score; bestTeam = team.map((x) => x.id); }
         }
       }
   const dtFull = Date.now() - t2;
 
-  const gap = bestPt ? ((bestPt - (fast[0]?.points ?? 0)) / bestPt) * 100 : 0;
-  worst = Math.max(worst, gap);
+  const fastPt = fast[0]?.points ?? 0;
+  const gap = bestPt ? ((bestPt - fastPt) / bestPt) * 100 : 0;
+  if (gap >= 0) worst = Math.max(worst, gap);
+  else worstMismatch = Math.max(worstMismatch, -gap);
+
   console.log(`\n活动 ${eid} ${ev.n} (${ev.ty}) 候选 ${n} 张 = C(${n},5)=${Math.round(n * (n - 1) * (n - 2) * (n - 3) * (n - 4) / 120)} 组`);
   console.log(`  全量精确: PT ${bestPt}  分数 ${bestScore}  ${dtFull}ms  [${bestTeam}]`);
-  console.log(`  剪枝枚举: PT ${fast[0]?.points}  分数 ${fast[0]?.score}  ${dtFast}ms  [${fast[0]?.team.map((x) => x.id)}]`);
-  console.log(`  差距 ${gap.toFixed(2)}%`);
+  console.log(`  剪枝枚举: PT ${fastPt}  分数 ${fast[0]?.score}  ${dtFast}ms  [${fast[0]?.team.map((x) => x.id)}]`);
+  console.log(`  差距 ${gap.toFixed(2)}%${gap < 0 ? '  ← 剪枝版更高，两条路径口径不一致' : ''}`);
 }
 
-console.log(worst <= 0.5 ? `\n✓ 剪枝最大差距 ${worst.toFixed(2)}%（≤0.5%，可接受）` : `\n✗ 剪枝差距 ${worst.toFixed(2)}% 过大`);
-process.exit(worst <= 0.5 ? 0 : 1);
+const ok = worst <= 0.5 && worstMismatch <= 0.001;
+if (worstMismatch > 0.001) {
+  console.log(`\n✗ 剪枝版比全量版高 ${worstMismatch.toFixed(2)}% —— 两条路径计分口径不同，对拍无效`);
+} else if (!ok) {
+  console.log(`\n✗ 剪枝差距 ${worst.toFixed(2)}% 过大`);
+} else {
+  console.log(`\n✓ 剪枝最大差距 ${worst.toFixed(2)}%（≤0.5%，可接受）`);
+}
+process.exit(ok ? 0 : 1);

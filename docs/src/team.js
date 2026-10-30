@@ -923,14 +923,31 @@ export function scoreTeam(team, parsed, ctx) {
 
   // ① 每 NOTE 的整数基础分（含 combo 与 fever，不含技能）
   //    ⚠️ `comboBonus` 返回的是**加成值**（0.00~0.11），要自己加 1
-  const inner = new Array(n);
-  let baseSum = 0;
-  for (let i = 0; i < n; i++) {
-    const fever = notes[i].fever ? 2 : 1;
-    const v = Math.floor(basePerNote * (1 + comboBonus(i + 1)) * fever * judge);
-    inner[i] = v;
-    baseSum += v;
+  //
+  // 这里**不逐音符存**，而是折叠成「连续段」：同一段内 combo 率与 fever 都不变，
+  // 所以 `floor(basePerNote * (1+combo) * fever * judge)` 是**常数**。
+  // 实测任何谱面都只有 13 段（combo 表 12 档 + Fever 边界），与音符数无关 ——
+  // 逐音符的 O(n) 循环因此塌成 O(13)，整支队计分快一个数量级。
+  //
+  // 这不是近似：段内每个音符取值完全相同，`count * v` 与逐个累加逐位相等（全整数）。
+  const groups = [];
+  {
+    let start = 0;
+    let v = Math.floor(basePerNote * 1 * (notes[0].fever ? 2 : 1) * judge);
+    let rate = 1 + comboBonus(1);
+    let fever = notes[0].fever ? 2 : 1;
+    for (let i = 1; i < n; i++) {
+      const r = 1 + comboBonus(i + 1);
+      const f = notes[i].fever ? 2 : 1;
+      if (r === rate && f === fever) continue;
+      groups.push({ start, end: i, v });
+      start = i; rate = r; fever = f;
+      v = Math.floor(basePerNote * r * f * judge);
+    }
+    groups.push({ start, end: n, v });
   }
+  let baseSum = 0;
+  for (const g of groups) baseSum += (g.end - g.start) * g.v;
 
   // ② 触发点 → ③ 每个 (窗口, 成员) 的整数增分
   const slots = skillSlots(ctx.event);
@@ -938,23 +955,47 @@ export function scoreTeam(team, parsed, ctx) {
   const trig = triggerIndices(notes, slots);
   const K = trig.length;
 
-  const gain = trig.map((start, w) => {
+  // 成员的技能倍率 / 持续时长只跟卡有关，跟窗口无关，先算一次
+  const mulArr = [];
+  const durArr = [];
+  for (const card of team) {
+    const sk = ctx.skills?.[String(card.sk)] || {};
+    mulArr.push(1 + (sk.up || 0) / 100);
+    durArr.push(skillDuration(sk, level));
+  }
+  // 最后一个 `time <= t` 的下标（`time` 非递减，二分）。等价于原来「扫到超时就停」。
+  const lastIdxAtOrBefore = (t) => {
+    let lo = 0, hi = n - 1, ans = -1;
+    while (lo <= hi) {
+      const mid = (lo + hi) >> 1;
+      if (notes[mid].time <= t) { ans = mid; lo = mid + 1; } else { hi = mid - 1; }
+    }
+    return ans;
+  };
+
+  const gain = [];
+  for (let w = 0; w < K; w++) {
     // 窗口终点：下个触发点之前的最后一颗（Bestdori 在下一颗触发点处换窗口）
     const last = w + 1 < K ? trig[w + 1] : n - 1;
-    const t0 = notes[start].time;
-    return team.map((card) => {
-      const sk = ctx.skills?.[String(card.sk)] || {};
-      const mul = 1 + (sk.up || 0) / 100;
-      const endTime = t0 + skillDuration(sk, level);
+    const a = trig[w] + 1;   // 触发音符**自己不吃**这次技能
+    const t0 = notes[trig[w]].time;
+    const row = new Array(team.length).fill(0);
+    for (let m = 0; m < team.length; m++) {
+      const b = Math.min(last, lastIdxAtOrBefore(t0 + durArr[m]));
+      if (b < a) continue;
+      const mul = mulArr[m];
       let sum = 0;
-      // 触发音符**自己不吃这次技能**，所以从 start+1 开始
-      for (let i = start + 1; i <= last; i++) {
-        if (notes[i].time > endTime) break;
-        sum += Math.floor(inner[i] * mul) - inner[i];
+      for (const g of groups) {
+        if (g.end <= a) continue;
+        if (g.start > b) break;
+        const lo = g.start > a ? g.start : a;
+        const hi = g.end - 1 < b ? g.end - 1 : b;
+        sum += (Math.floor(g.v * mul) - g.v) * (hi - lo + 1);
       }
-      return sum;
-    });
-  });
+      row[m] = sum;
+    }
+    gain.push(row);
+  }
 
   // ④ 120 种顺序的期望（查表，不重扫谱面）
   const perms = permutations5([0, 1, 2, 3, 4]);
@@ -1299,30 +1340,21 @@ export function eventPoints(score, event, opt = {}) {
 // ---------------------------------------------------------------------------
 
 /**
- * 从候选卡里挑出得分最高的 5 张。
+ * 构造组队用的候选池（`bestTeams` 的第一阶段）。
  *
- * 先把候选按三围总和排序取前 `POOL_LIMIT` 张（三围是分数的主项），
- * 再对它做精确组合枚举——`C(24,5)=42504`，浏览器里几百毫秒。
- * 这样做会漏掉个别"三围一般但技能极强"的卡，所以调用方可以调大上限。
+ * 单独抽出来是为了**让验证脚本用同一份输入**。原先 `team_prune_check.mjs`
+ * 自己抄了一份候选池构造逻辑，两边一旦不同步，对拍就变成「拿 A 的输入比 B 的
+ * 输出」—— 看着全绿，其实什么都没证明。现在两边都调这个函数。
  *
- * @param {object[]} pool  候选卡（含 `sx`/`ep`/`sk`）
- * @param {object}   parsed
+ * @param {object[]} pool
  * @param {object}   ctx
- * @param {{topN?:number, poolLimit?:number}} [opt]
- * @returns {{team:object[], score:number, power:number}[]}
+ * @param {{poolLimit?:number}} [opt]
+ * @returns {object[]} 去重后的候选卡数组
  */
-export async function bestTeams(pool, parsed, ctx, opt = {}) {
-  const topN = opt.topN ?? 10;
-  // ⚠️ 排序口径必须跟「有没有活动」绑定。
-  //
-  // 早期默认按**分数**排：结果是「综合力最高的 5 张」永远排在最前，而真正能拿
-  // 活动点数的「档期卡队」被挤出 TopN —— 这正是视频里演示的误区（综合力 38006
-  // 的队 PT 反而更低）。有活动就必须按 points 排，分数只是中间量。
-  const sortBy = opt.sortBy || (ctx.event ? 'points' : 'score');
-  // 给了实际道具等级就**自动为每支队挑最优道具**，而不是全队共用一个手填值
-  const itemLevels = opt.itemLevels || null;
-  const chars = opt.characters || ctx.characters || null;
+export function buildCandidatePool(pool, ctx = {}, opt = {}) {
+  const ev = ctx.event || null;
   const limit = opt.poolLimit ?? POOL_LIMIT;
+  const memberIds = new Set((ev?.mb || []).map(Number));
 
   // ⚠️ **不能只按三围取前 N**：活动加成卡的属性/角色不一定是三围最高的，
   // 单靠三围过滤会把它们整批筛掉，最后算出的队伍一点加成都不吃（实测踩过）。
@@ -1333,15 +1365,6 @@ export async function bestTeams(pool, parsed, ctx, opt = {}) {
   // 最高的那一批，但它是唯一能吃到「成员 +20%」的卡。漏掉它，算法就只能推荐
   // 高综合力的通用卡 —— 而实测（视频里的对照）恰恰是「5 张都吃 +20% 的低综合力
   // 队」拿到的 PT 更多。
-  const ev = ctx.event || null;
-  const memberIds = new Set((ev?.mb || []).map(Number));
-
-  // 支援乐队（Mission Live 专属）：池子按 solo 综合力排一次就够，跟主队无关。
-  // 只有 mission_live 有点数上的支援项，别的活动不算 —— 算了也是白算。
-  const supportPool = ev?.ty === 'mission_live' && opt.supportBand !== false
-    ? prepareSupportPool(pool, ctx)
-    : null;
-
   const withSum = pool.map((c) => ({
     c, sum: (c.sx || [0, 0, 0]).reduce((a, b) => a + b, 0),
   })).sort((a, b) => b.sum - a.sum);
@@ -1391,19 +1414,62 @@ export async function bestTeams(pool, parsed, ctx, opt = {}) {
       .slice(0, BONUS_LIMIT);
     for (const x of others) picked.set(x.c.id ?? x.c, x.c);
   }
-  const ranked = [...picked.values()];
+
+  return [...picked.values()];
+}
+
+/**
+ * 从候选卡里挑出得分最高的 5 张。
+ *
+ * 先把候选按三围总和排序取前 `POOL_LIMIT` 张（三围是分数的主项），
+ * 再对它做精确组合枚举——`C(24,5)=42504`，浏览器里几百毫秒。
+ * 这样做会漏掉个别"三围一般但技能极强"的卡，所以调用方可以调大上限。
+ *
+ * @param {object[]} pool  候选卡（含 `sx`/`ep`/`sk`）
+ * @param {object}   parsed
+ * @param {object}   ctx
+ * @param {{topN?:number, poolLimit?:number}} [opt]
+ * @returns {{team:object[], score:number, power:number}[]}
+ */
+export async function bestTeams(pool, parsed, ctx, opt = {}) {
+  const topN = opt.topN ?? 10;
+  // ⚠️ 排序口径必须跟「有没有活动」绑定。
+  //
+  // 早期默认按**分数**排：结果是「综合力最高的 5 张」永远排在最前，而真正能拿
+  // 活动点数的「档期卡队」被挤出 TopN —— 这正是视频里演示的误区（综合力 38006
+  // 的队 PT 反而更低）。有活动就必须按 points 排，分数只是中间量。
+  const sortBy = opt.sortBy || (ctx.event ? 'points' : 'score');
+  // 给了实际道具等级就**自动为每支队挑最优道具**，而不是全队共用一个手填值
+  const itemLevels = opt.itemLevels || null;
+  const chars = opt.characters || ctx.characters || null;
+
+  // 候选池构造见 `buildCandidatePool` —— 抽出去是为了让验证脚本用**同一份输入**。
+  const ev = ctx.event || null;
+
+  // 支援乐队（Mission Live 专属）：池子按 solo 综合力排一次就够，跟主队无关。
+  // 只有 mission_live 有点数上的支援项，别的活动不算 —— 算了也是白算。
+  const supportPool = ev?.ty === 'mission_live' && opt.supportBand !== false
+    ? prepareSupportPool(pool, ctx)
+    : null;
+
+  const ranked = buildCandidatePool(pool, ctx, opt);
 
   // ---------------------------------------------------------------------------
   // 两阶段枚举
   //
-  // 精确算一支队要遍历全部 NOTE（600+）× 6 次技能判定，约 4000 次比较。
-  // 候选池 23 张时 C(23,5)=3.4 万组 × 2 个 C 位 × 4000 ≈ 2.7 亿次，
-  // 实测 12 秒 —— 浏览器里就是「点了没反应」。
+  // 精确算一支队要遍历 6 个窗口 × 5 名成员，每格扫一遍音符；候选池 23 张时
+  // C(23,5)=3.4 万组 × 2 个 C 位，全量跑要十几秒 —— 浏览器里就是「点了没反应」。
   //
   // 所以先用**便宜的上界**粗排一遍，只把最有希望的 PRECISE_LIMIT 组交给精确
   // 计算。上界要覆盖三围、技能强度、活动加成三项（只按三围排会漏掉技能怪）。
+  //
+  // ⚠️ 这是**启发式截断，不是有证明的剪枝**：`roughKey` 里的技能覆盖率
+  // （0.35）和判定折扣（0.9）都是估算值，代理值排序错了就会把真正的最优解
+  // 切掉。`scripts/team_prune_check.mjs` 用全量枚举盯着这条，目前 3 期活动
+  // 差距 0.00%。要更强保证就得把 `roughKey` 换成真正的上界（见开发与验证.md
+  // 的「编组算法」一节），代价是上界变松后能剪掉的变少。
   // ---------------------------------------------------------------------------
-  const PRECISE_LIMIT = 600;
+  const PRECISE_LIMIT = opt.preciseLimit ?? 600;
   const skillsTbl = ctx.skills || {};
   const bonusCache = new Map();
   // 星光等级从卡对象上取（导入档案时有 master 字段）。缺省 0 = 没升星光，
@@ -1503,6 +1569,11 @@ export async function bestTeams(pool, parsed, ctx, opt = {}) {
   // 调试用：有多少组合因为「同角色重复」被排除（正常应占少数）
   if (opt.onStats) opt.onStats({ combos: total, skippedDup, shortlist: shortlist.length });
 
+  // 真正最优解在粗排序列里排第几。把 `preciseLimit` 开到全量（比如 1e9）跑一次，
+  // 这个数就是「截断余量」：排名远小于 600 说明启发式很稳，接近 600 就该警惕。
+  let bestIdx = -1;
+  let bestSeen = -Infinity;
+
   for (let i = 0; i < shortlist.length; i++) {
     const five = shortlist[i].five;
     if (i % 80 === 0) {
@@ -1569,9 +1640,13 @@ export async function bestTeams(pool, parsed, ctx, opt = {}) {
       row.channel = eventChannel(ev);
     }
     results.push(row);
+    const cmp = sortBy === 'points' ? (row.points ?? 0) : row.score;
+    if (cmp > bestSeen) { bestSeen = cmp; bestIdx = i; }
   }
 
   if (onProgress) onProgress(1);
+  // 第二次 onStats：补上 `bestRank`（第一次在枚举前，给进度用）
+  if (opt.onStats) opt.onStats({ bestRank: bestIdx });
   results.sort((a, b) => {
     if (sortBy === 'points') {
       // **直接比点数**。点数公式已经把分数和加成（或综合力里的加成）都算进去了，

@@ -85,12 +85,21 @@ def main() -> int:
         「有没有 s/f」当新旧判据 —— 只能看有没有多出来的键。
         `chart_payload` 在无技能点/无 Fever 时确实会省掉这两个键，
         所以判据取「键集合是否 ⊆ {d, n}」。
+
+        ⚠️ 还要校验 **`s` 的长度必须是 6**。踩过：`special/786` 有 17 个带
+        `skill` 标记的音符（Slide 每个连接点都标），早期版本按音符去重，
+        写出 17 个触发点；而 `is_stale` 只看「有没有 s 键」，于是这个错文件
+        永远被当成最新，`--only-stale` 反复跳过它。
+        现在全库 3466 个谱面 `s` 长度都是 6，唯一例外就是它。
         """
         try:
             o = json.loads(p.read_text(encoding="utf-8"))
         except Exception:
             return True
-        return set(o) <= {"d", "n"}
+        if set(o) <= {"d", "n"}:
+            return True
+        s = o.get("s")
+        return s is not None and len(s) != 6
 
     for diff in diffs:
         ids = [sid for sid, s in songs.items()
