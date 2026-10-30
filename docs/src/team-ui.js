@@ -7,7 +7,7 @@
  *   data/charts/{diff}/{id}.json   预拉的谱面（note 时间表）
  */
 
-import { parseChart, bestTeams, eventBonusFor, eventPoints } from './team.js';
+import { parseChart, bestTeams, eventBonusFor, eventPoints, pickAreaItems } from './team.js';
 import { parseProfile } from './profile.js';
 import { recognizeImage, parseOcrLines } from './ocr.js';
 import { fetchChart } from './chart-fetch.js';
@@ -641,8 +641,20 @@ export async function runTeamCalc() {
         </div>
         <div class="footnote" id="tmProgTxt">候选 ${p.length} 张，正在枚举组合…</div>
       </div>`;
+    // 实际道具等级：来自「道具」页（bdh.items.v1），没有就退回手填的三组百分比
+    let itemLevels = null;
+    try {
+      const raw = localStorage.getItem('bdh.items.v1');
+      if (raw) {
+        const it = JSON.parse(raw);
+        if (it && Object.keys(it).length) itemLevels = it;
+      }
+    } catch { /* 忽略 */ }
+
     let results = await bestTeams(p, parsed, ctx, {
       topN: 30,
+      itemLevels,                      // ← 有实际等级就逐队自动选道具
+      characters: TEAM.characters,
       onProgress: (f) => {
         const bar = $('tmProg');
         if (bar) bar.style.width = `${Math.round(f * 100)}%`;

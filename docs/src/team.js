@@ -72,6 +72,74 @@ const BONUS_LIMIT = 12;
 // ---------------------------------------------------------------------------
 
 /**
+ * 给一支队伍挑最优的区域道具。
+ *
+ * 游戏里一次只能开**一个**乐队道具和**一个**属性道具（各管一个乐队/属性），
+ * 所以对固定队伍要选「覆盖人数 × 加成%」最大的那个。
+ *
+ * ⚠️ 不能简单地"选人最多的乐队"——如果 PPP 道具 Lv8(+12%) 而 HHW 只有
+ * Lv3(+4.5%)，队里 PPP 2 人、HHW 3 人时，2×12% > 3×4.5%，该开 PPP。
+ *
+ * @param {object[]} team 5 张卡（需 ch / a）
+ * @param {object} levels {道具槽: 等级}（来自 my-items.json 或用户输入）
+ * @param {object} [chars] {角色ID: {b}} 用于查每张卡的乐队
+ * @returns {{area:object, bandSlot:string|null, attrSlot:string|null}}
+ */
+//: 道具槽位名 -> 角色数据里的乐队名。
+//: 两套命名不一致（槽位是 HelloHappyWorld，乐队是 Hello, Happy World!），
+//: 不映射就永远匹配不到，会静默退到"随便一个能匹配的乐队"。
+const SLOT_TO_BAND = {
+  PoppinParty: "Poppin'Party",
+  Afterglow: 'Afterglow',
+  PastelPalettes: 'Pastel*Palettes',
+  Roselia: 'Roselia',
+  HelloHappyWorld: 'Hello, Happy World!',
+  Morfonica: 'Morfonica',
+  RaiseASuilen: 'RAISE A SUILEN',
+  MyGO: 'MyGO!!!!!',
+};
+
+export function pickAreaItems(team, levels, chars) {
+  const P = (slot) => 0.015 * (Number(levels?.[slot]) || 0);   // 每级 1.5%（近似）
+  const bandOf = (c) => c.band ?? chars?.[c.ch]?.b ?? null;
+
+  // 统计每支乐队 / 每种属性各有几张
+  const bandCnt = {}, attrCnt = {};
+  for (const c of team) {
+    const b = bandOf(c);
+    if (b) bandCnt[b] = (bandCnt[b] || 0) + 1;
+    if (c.a) attrCnt[c.a] = (attrCnt[c.a] || 0) + 1;
+  }
+
+  // 候选：有等级的道具槽才有意义
+  const bandSlots = Object.keys(levels || {}).filter((k) =>
+    !['Menu', 'Plaza', 'Magazine', 'Everyone', 'potentials'].includes(k) && (levels[k] || 0) > 0);
+  const attrSlots = { Menu: null, Plaza: null };
+
+  const pickBest = (pairs) => pairs.reduce((best, cur) => (cur.score > (best?.score || 0) ? cur : best), null);
+
+  // 乐队道具：覆盖人数 × 加成（注意先把槽位名转成乐队名再查人数）
+  const bandBest = pickBest(bandSlots
+    .map((slot) => ({ slot, band: SLOT_TO_BAND[slot], score: (bandCnt[SLOT_TO_BAND[slot]] || 0) * P(slot) }))
+    .filter((x) => x.score > 0));
+
+  // 属性道具：Menu / Plaza 各对应一个属性，但档案里没记是哪个属性
+  // → 保守做法：对每个属性都算一遍，取能覆盖最多人的那个
+  //   （不同属性的道具在不同槽位，这里用"队里最多的属性"来近似）
+  const topAttr = Object.entries(attrCnt).sort((a, b) => b[1] - a[1])[0]?.[0] || null;
+  const attrScore = topAttr ? (attrCnt[topAttr] || 0) * Math.max(P('Menu'), P('Plaza')) : 0;
+
+  const area = {
+    band: bandBest ? P(bandBest.slot) : 0,
+    bandBand: bandBest ? bandBest.band : undefined,
+    attr: topAttr ? Math.max(P('Menu'), P('Plaza')) : 0,
+    attrAttr: topAttr || undefined,
+    magazine: Math.max(P('Magazine'), P('Everyone')),
+  };
+  return { area, bandSlot: bandBest?.slot || null, attrSlot: topAttr, bandScore: bandBest?.score || 0, attrScore };
+}
+
+/**
  * 队伍综合力。
  *
  * ```
@@ -460,6 +528,9 @@ export async function bestTeams(pool, parsed, ctx, opt = {}) {
   // ⚠️ 默认按**分数**排会把"综合力高但没吃活动加成"的队排前面，
   // 真正能拿点数的反而被挤出 TopN。要追活动点时必须传 sortBy: 'points'。
   const sortBy = opt.sortBy || 'score';
+  // 给了实际道具等级就**自动为每支队挑最优道具**，而不是全队共用一个手填值
+  const itemLevels = opt.itemLevels || null;
+  const chars = opt.characters || ctx.characters || null;
   const limit = opt.poolLimit ?? POOL_LIMIT;
 
   // ⚠️ **不能只按三围取前 N**：活动加成卡的属性/角色不一定是三围最高的，
@@ -513,8 +584,15 @@ export async function bestTeams(pool, parsed, ctx, opt = {}) {
             let best = null;
             for (const capCard of bySkill.slice(0, 2)) {
               const team = [capCard, ...five.filter((x) => x !== capCard)];
-              const r = scoreTeam(team, parsed, ctx);
-              if (!best || r.score > best.score) best = { team, ...r };
+              // 每支队单独算道具：同一套道具不可能对所有队伍都最优
+              let ctx2 = ctx;
+              let picked = null;
+              if (itemLevels) {
+                picked = pickAreaItems(team, itemLevels, chars);
+                ctx2 = { ...ctx, area: picked.area, characters: chars };
+              }
+              const r = scoreTeam(team, parsed, ctx2);
+              if (!best || r.score > best.score) best = { team, ...r, area: picked?.area, bandSlot: picked?.bandSlot };
             }
             const row = { team: best.team, score: best.score, power: best.power };
             if (sortBy === 'points') {
