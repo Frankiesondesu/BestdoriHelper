@@ -21,7 +21,7 @@ OUT = PROJ / "render"
 
 W, H = 1280, 720
 SCALE = 2                      # 2x -> 2560×1440
-N_PAGES = 14                   # 总页数 —— 改页数时这里和 make_lrc.PAGES 一起改
+N_PAGES = 15                   # 总页数 —— 改页数时这里和 make_lrc.PAGES 一起改
 
 # ---- 配色（同 DESIGN.md）-------------------------------------------------
 INK = "#1F2430"
@@ -543,6 +543,46 @@ def build() -> str:
       </div>
     """ + footer(12)))
 
+    # ---- 13 先把官网切成中文（首次访问会弹设置框）----
+    # 官网对首次访问者是英文，而这份说明是中文的 —— 截图是英文的话，用户对着
+    # 自己的屏幕根本对不上。所以教程里先教这一句，再讲导入。
+    S.append(slide(13, f"""
+      <div class="a"><div class="bar"></div><h1>先把官网切成中文</h1>
+        <span class="sub">官方界面能切语言，只是默认给英文</span></div>
+      <div class="b" style="gap:26px;align-items:center">
+        {shot("web_lang_dialog.png", 540, 445)}
+        <div style="flex:1;display:flex;flex-direction:column;gap:16px">
+          <div style="display:flex;gap:12px;align-items:flex-start">
+            <div style="width:30px;height:30px;border-radius:8px;background:{ACCENT};color:#fff;
+                        font-size:16px;font-weight:700;display:flex;align-items:center;
+                        justify-content:center;flex:none">1</div>
+            <div style="min-width:0">
+              <div style="font-size:18px;font-weight:700;line-height:1.25">第一次进会弹设置框</div>
+              <div style="font-size:14px;color:{DIM};line-height:1.4;margin-top:2px">
+                里面就有「用户界面语言」，点「简」</div>
+            </div>
+          </div>
+          <div style="display:flex;gap:12px;align-items:flex-start">
+            <div style="width:30px;height:30px;border-radius:8px;background:{ACCENT};color:#fff;
+                        font-size:16px;font-weight:700;display:flex;align-items:center;
+                        justify-content:center;flex:none">2</div>
+            <div style="min-width:0">
+              <div style="font-size:18px;font-weight:700;line-height:1.25">已经访问过了？</div>
+              <div style="font-size:14px;color:{DIM};line-height:1.4;margin-top:2px">
+                右上角头像 →「用户档案」→ 设置，同样能改</div>
+            </div>
+          </div>
+          <div style="display:flex;align-items:flex-start;gap:10px;padding:11px 15px;
+                      background:rgba(232,71,139,.07);border-radius:10px;margin-top:2px">
+            <div style="width:4px;height:44px;background:{ACCENT};border-radius:2px;flex:none"></div>
+            <div style="font-size:14px;color:{DIM};line-height:1.5">
+              切成中文之后，下面的界面才和这份说明里的截图对得上 ——
+              本页右侧就是中文界面下的样子。</div>
+          </div>
+        </div>
+      </div>
+    """ + footer(13)))
+
     # ---- 13 在官网上导入（真实官网界面 + 实测坐标标注）----
     # 坐标不是目测的：scripts/annotate_bestdori_web.py 读 DOM 量出来的。
     # ⚠️ 官网右上角**没有**登录按钮 —— 登录链接在页面中部 Cloud Storage 段，
@@ -563,7 +603,7 @@ def build() -> str:
           <div style="font-size:14px;color:{DIM};line-height:1.4;margin-top:2px">{d}</div>
         </div>
       </div>""" for n, t, d in wweb)
-    S.append(slide(13, f"""
+    S.append(slide(14, f"""
       <div class="a"><div class="bar"></div><h1>在官网上导入</h1>
         <span class="sub">bestdori.com/profile/manager</span></div>
       <div class="b" style="gap:26px;align-items:center">
@@ -583,7 +623,7 @@ def build() -> str:
     """ + footer(14)))
 
     # ---- 14 结尾 ----
-    S.append(slide(14, svg_ending() + """
+    S.append(slide(15, svg_ending() + """
       <div style="position:relative;height:100%;display:flex;flex-direction:column;
                   justify-content:center;padding:0 96px;gap:24px">
         <div style="display:flex;align-items:center;gap:12px">

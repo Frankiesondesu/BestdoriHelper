@@ -55,11 +55,96 @@ RETRIES = 3
 
 DIFFS = {"easy": 0, "normal": 1, "hard": 2, "expert": 3, "special": 4}
 
-NOTE_TYPES = {"Single", "Long", "Flick"}
+NOTE_TYPES = {"Single", "Long", "Flick", "Slide", "Directional"}
 
 
-def beat_to_time(chart: list[dict]):
-    """把 beat 换算成秒（谱面中途可能变速，要分段累加）。"""
+def note_beats(e: dict) -> list[float]:
+    """一颗谱面事件对应的**连击数**（可能不止 1）。
+
+    官方 `songs.json` 的 `notes` 字段是「连击数」，不是「事件数」。
+    全库 3457 个谱面比对下来，规则是：
+
+    | 类型 | 连击数 | 说明 |
+    |------|--------|------|
+    | Single / Flick / **Directional** | 1 | 三者在游戏里都是一次点击 |
+    | Long | `len(connections)` | 头 + 尾各算一次（实测都是 2） |
+    | Slide | **非 `hidden` 的连接点数** | 见下 |
+
+    ## 两个踩过的坑
+
+    **坑一：`Directional` 整个漏掉。** 它只在 SPECIAL 谱面里出现
+    （歌 9 有 28 个、歌 3 有 127 个）。早期 `NOTE_TYPES` 里没有它，
+    歌 3 的 SPECIAL 直接少算 127 颗。
+
+    **坑二：Slide 的 `hidden: true` 连接点是渲染插值，不是连击点。**
+    SPECIAL 谱面里的弧形滑条会被 Bestdori 采样成几十个点，标上
+    `"hidden": true` 只是为了画曲线。歌 9 的 SPECIAL 有 **608 个 hidden 点**
+    （占全部连接点的 75%），全算进去的话 690 → 1270，虚高 84%。
+
+    ```
+    歌 9  ETERNAL BLAZE   SPECIAL   官方 690
+          Single 406 + Directional 28 + Long 52 + Slide 可见点 204 = 690  ✓
+    歌 8  空色デイズ        SPECIAL   官方 760
+          Single 474 + Directional 58 + Long 26 + Slide 可见点 202 = 760  ✓
+    歌 3  ぽっぴん'しゃっふる SPECIAL   官方 979
+          Single 576 + Directional 127 + Long 58 + Slide 可见点 218 = 979  ✓
+    ```
+
+    全库校验：162 首 SPECIAL **全部命中**（`scripts/diag_special_notes.py`），
+    其余四个难度 3331 例也全一致。
+    """
+    t = e.get("type")
+    if t in ("Single", "Flick", "Directional"):
+        b = e.get("beat")
+        return [b] if isinstance(b, (int, float)) else []
+    conns = e.get("connections") or []
+    if t == "Long":
+        # 头尾两个连接点；只有 1 个点时退回该点（容错）
+        pts = [c.get("beat") for c in conns if isinstance(c.get("beat"), (int, float))]
+        if not pts:
+            return []
+        return [pts[0], pts[-1]] if len(pts) > 1 else [pts[0]]
+    if t == "Slide":
+        # ⚠️ 必须跳过 hidden 的插值点，否则 SPECIAL 谱面会虚高几十个百分点
+        return [
+            c.get("beat")
+            for c in conns
+            if not c.get("hidden") and isinstance(c.get("beat"), (int, float))
+        ]
+    return []
+
+
+
+def chart_payload(chart: list[dict]) -> dict:
+    """把原始谱面压成算分要用的最小结构。
+
+    ```json
+    {"d": 117.4, "n": [0.0, 0.317, ...], "s": [12, 168, ...], "f": [61.2, 78.4]}
+    ```
+
+    - `d`：最后一颗 NOTE 的时间（秒）
+    - `n`：每颗 NOTE 的时间（秒，已按 BPM 事件换算，含变速）
+    - `s`：**技能触发点在 `n` 里的下标**
+    - `f`：**Fever 区间**（秒，闭区间），没有就是缺省
+
+    ## 为什么要存 `s` 和 `f`
+
+    原来只存 `n`，前端只能拿「把谱面按 6 等分」当触发点、并且**完全不知道
+    Fever 存在**。拿 Bestdori 自己的 `ct()` 当基准实测（同一综合力）：
+
+    | 歌曲 | 网格/无火 vs 真实/无火 | 加上 Fever |
+    | --- | --- | --- |
+    | 7 expert | +0.41% | **+29.3%** |
+    | 540 hard | +2.19% | **+29.2%** |
+    | 9 special | −1.52% | **+29.4%** |
+
+    Fever 区间内每颗音符**分数翻倍**，漏掉就是系统性低估近三成。
+    触发点用网格只差 ±4%，但既然要重抓，就一并存真的。
+
+    规则来自 Bestdori 的 `ToolTeamBuilder`（`apiChart` → `notes` 那段）：
+    `cmd_fever_start.wav` / `cmd_fever_end.wav` 两个 System 事件的 beat 之间
+    算 Fever；技能触发是 note（含 Slide/Long 的连接点）上的 `skill` 属性。
+    """
     bpm_events = sorted(
         (e for e in chart if e.get("type") == "BPM" and isinstance(e.get("bpm"), (int, float))),
         key=lambda e: e["beat"],
@@ -80,26 +165,63 @@ def beat_to_time(chart: list[dict]):
                 return t
         return t
 
-    def start_beat(e):
-        """一颗 NOTE 的起始 beat。
-
-        ⚠️ `Long`（长条）**没有 `beat` 字段**，时间在 `connections[0].beat` 里。
-        只按 `e["beat"]` 取会把这些全漏掉 —— 实测某首歌少算 59 颗 NOTE（-15%），
-        导致每 NOTE 分虚高、总分系统性偏移。
-        """
-        if e.get("type") == "Long":
-            conns = e.get("connections") or []
-            return conns[0].get("beat") if conns else None
-        return e.get("beat")
-
-    beats = []
+    fever_start = fever_end = None
     for e in chart:
-        if e.get("type") not in NOTE_TYPES:
+        if e.get("type") != "System":
             continue
-        b = start_beat(e)
-        if isinstance(b, (int, float)):
-            beats.append(conv(b))
-    return sorted(beats)
+        if e.get("data") == "cmd_fever_start.wav":
+            fever_start = e.get("beat")
+        elif e.get("data") == "cmd_fever_end.wav":
+            fever_end = e.get("beat")
+
+    pts: list[tuple[float, bool]] = []   # (秒, 是否技能触发)
+    for e in chart:
+        t = e.get("type")
+        if t in ("Single", "Flick", "Directional"):
+            b = e.get("beat")
+            if isinstance(b, (int, float)):
+                pts.append((conv(b), bool(e.get("skill"))))
+        elif t in ("Long", "Slide"):
+            for c in e.get("connections") or []:
+                if c.get("hidden"):
+                    continue
+                b = c.get("beat")
+                if isinstance(b, (int, float)):
+                    pts.append((conv(b), bool(c.get("skill"))))
+
+    # Bestdori 的排序：先按时间，同刻**触发音符在前**
+    pts.sort(key=lambda x: (x[0], not x[1]))
+    times = [round(p[0], 3) for p in pts]
+
+    # 触发点按**时刻**去重，不是按音符。
+    #
+    # 同一时刻可能有多个音符都带 `skill: true`（Slide 的每个连接点都会标），
+    # 实测 `special/786` 有 17 个带标记的音符，但只有 6 个不同时刻：
+    #   17.333×2, 30.667×2, 41.0×2, 63.167×7, 74.5×2, 90.667×2
+    # 不去重的话下游会以为有 17 次技能发动，而游戏里永远是 6 次。
+    skills: list[int] = []
+    seen_t: set[float] = set()
+    for i, (t, is_skill) in enumerate(pts):
+        if not is_skill:
+            continue
+        key = times[i]
+        if key in seen_t:
+            continue
+        seen_t.add(key)
+        skills.append(i)
+
+    out = {"d": times[-1] if times else 0, "n": times}
+    if skills:
+        out["s"] = skills
+    if isinstance(fever_start, (int, float)) and isinstance(fever_end, (int, float)):
+        if fever_end > fever_start:
+            out["f"] = [round(conv(fever_start), 3), round(conv(fever_end), 3)]
+    return out
+
+
+def beat_to_time(chart: list[dict]):
+    """把 beat 换算成秒（谱面中途可能变速，要分段累加）。"""
+    return chart_payload(chart)["n"]
 
 
 def fetch(url: str) -> bytes | None:

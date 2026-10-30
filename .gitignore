@@ -4,6 +4,9 @@ build/
 *.npz
 *.manifest.json
 
+# B 站视频抽帧的临时产物（scripts 里的 bili 工具默认下载到这里）
+.bili/
+
 # Python
 __pycache__/
 *.py[cod]
@@ -40,3 +43,15 @@ BestdoriHelper-使用说明/.slidep/
 
 # Office 打开文件时留下的临时锁文件（~$xxx.pptx）
 ~$*
+
+# 另一个 AI 助手的身份 / 工作文件 —— 和 .workbuddy/ 同性质，不是项目内容。
+# 9-18 那次事故就是这类文件被推到公开仓库（当时是 .workbuddy/memory/），
+# 只是这次换了个助手名字（IDENTITY.md 里写着 autoclaw agent-profile）。
+# 项目代码不需要它们，公开仓库更不该有。
+AGENTS.md
+SOUL.md
+IDENTITY.md
+USER.md
+HEARTBEAT.md
+TOOLS.md
+.openclaw/

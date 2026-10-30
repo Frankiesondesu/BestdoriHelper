@@ -29,7 +29,7 @@
                 </Text>
             </Box>
             <Text style={{ fontSize: 16, color: '#5A6376' }}>
-                全程 14 页 · 约 5 分钟
+                全程 15 页 · 约 5 分钟
             </Text>
         </Box>
 
@@ -96,7 +96,7 @@
             BestdoriHelper 使用说明
         </Text>
         <Text style={{ fontSize: 15, color: '#8A93A6' }}>
-            02 / 14
+            02 / 15
         </Text>
     </Box>
 

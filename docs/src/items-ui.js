@@ -6,6 +6,7 @@
  */
 
 import { recognizeImage, parseOcrLines, prewarm } from './ocr.js';
+import { bandItemPct, everyoneItemPct, AREA_ITEM_CURVE } from './team.js';
 
 const ITEM_SLOTS_CN = {
   PoppinParty: "Poppin'Party", Afterglow: 'Afterglow', PastelPalettes: 'Pastel*Palettes',
@@ -19,6 +20,9 @@ const BANDS = ['PoppinParty', 'Afterglow', 'PastelPalettes', 'Roselia',
 const OTHER = ['Menu', 'Plaza', 'Magazine', 'Everyone'];
 
 const STORE = 'bdh.items.v1';
+/** 道具**明细**（OCR 出来的中文名）单独存一个键 —— 组队页要靠名字判断
+ *  「这件属性道具管哪个属性」「这本杂志加哪一围」。等级本身仍是扁平表。 */
+const STORE_DETAIL = 'bdh.itemsDetail.v1';
 
 const $ = (id) => document.getElementById(id);
 
@@ -30,12 +34,39 @@ export function loadItems() {
   } catch { return {}; }
 }
 
+/** 读道具明细 {槽位: {level, name, file}}（可能为空） */
+export function loadItemDetail() {
+  try {
+    const raw = localStorage.getItem(STORE_DETAIL);
+    return raw ? JSON.parse(raw) : {};
+  } catch { return {}; }
+}
+
+function saveItemDetail(d) {
+  try { localStorage.setItem(STORE_DETAIL, JSON.stringify(d || {})); } catch { /* 配额 */ }
+}
+
 function saveItems(obj) {
   try { localStorage.setItem(STORE, JSON.stringify(obj)); } catch { /* 配額 */ }
 }
 
-/** 等级 -> 近似百分比（每级 1.5%）；界面可改 */
-function toPct(lv) { return Math.round(lv * 1.5 * 10) / 10; }
+/**
+ * 等级 -> 实际加成百分比。
+ *
+ * ⚠️ 四个品类的曲线不一样，而且乐队道具/大家的话筒是**7 件叠加**，
+ * 所以不能用一个「每级 1.5%」糊过去（旧版就是这么错的）。
+ */
+function toPct(slot, lv) {
+  const n = Number(lv) || 0;
+  if (n <= 0) return 0;
+  const C = AREA_ITEM_CURVE;
+  let pct;
+  if (slot === 'Menu' || slot === 'Plaza') pct = C.attr(n);
+  else if (slot === 'Magazine') pct = C.magazine(n);
+  else if (slot === 'Everyone') pct = everyoneItemPct(n);
+  else pct = bandItemPct(n);
+  return Math.round(pct * 10) / 10;
+}
 
 function renderTable(items) {
   const box = $('itTable');
@@ -48,7 +79,7 @@ function renderTable(items) {
   const row = (slot, lv) => `<tr>
       <td>${ITEM_SLOTS_CN[slot] || slot}</td>
       <td class="mono">Lv${lv}</td>
-      <td class="mono">≈ ${toPct(lv)}%</td>
+      <td class="mono">≈ ${toPct(slot, lv)}%</td>
     </tr>`;
 
   const bandRows = BANDS.filter((b) => b in items).map((b) => row(b, items[b])).join('');
@@ -59,7 +90,11 @@ function renderTable(items) {
     <tbody>
       ${bandRows || '<tr><td colspan="3" class="footnote">没有乐队道具</td></tr>'}
       ${otherRows}
-    </tbody></table></div>`;
+    </tbody></table></div>
+    <p class="footnote">「换算」= 把这一套 7 件全装上时的加成。
+    专有道具与共通道具<b>按槽位二选一</b>：装了「大家的键盘」就不能再装有咲的键盘，
+    但不同乐器可以混装（大家的键盘 + 多惠的吉他没问题）。
+    组队页会按实际队伍逐槽取优，所以这里两行的数字<b>不会相加</b>。</p>`;
 }
 
 function refreshPctInputs(items) {
@@ -67,9 +102,9 @@ function refreshPctInputs(items) {
   const bandLv = bands.length ? Math.max(...bands) : 0;
   const attrLv = Math.max(items.Menu || 0, items.Plaza || 0);
   const magLv = Math.max(items.Magazine || 0, items.Everyone || 0);
-  if ($('itBandPct')) $('itBandPct').value = toPct(bandLv);
-  if ($('itAttrPct')) $('itAttrPct').value = toPct(attrLv);
-  if ($('itMagPct')) $('itMagPct').value = toPct(magLv);
+  if ($('itBandPct')) $('itBandPct').value = toPct(BANDS.find((b) => b in items) || 'PoppinParty', bandLv);
+  if ($('itAttrPct')) $('itAttrPct').value = toPct('Menu', attrLv);
+  if ($('itMagPct')) $('itMagPct').value = toPct('Magazine', magLv);
 }
 
 /** 把当前三个百分比写进组队页用的设置里 */
@@ -166,6 +201,9 @@ export function initItemsTab() {
           else out[slot] = Number(v) || 0;
         }
         saveItems(out);
+        // my-items.json 里还有 detail（OCR 出来的中文名），组队页要靠它判断
+        // 「属性道具管哪个属性」「杂志加哪一围」
+        if (data.detail && typeof data.detail === 'object') saveItemDetail(data.detail);
         renderTable(out);
         refreshPctInputs(out);
         $('itProgress').textContent = `已导入 ${Object.keys(out).length} 个槽位`;
@@ -177,6 +215,7 @@ export function initItemsTab() {
 
     $('itClear').onclick = () => {
       saveItems({});
+      saveItemDetail({});
       renderTable({});
       refreshPctInputs({});
       $('itProgress').textContent = '已清空';

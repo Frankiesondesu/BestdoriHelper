@@ -1,0 +1,85 @@
+<Slide style={{ width: 1280, height: 720, padding: '20px 72px', background: '#F7F8FA', flexDirection: 'column' }}>
+
+    {/* ===== A · 标题块 ===== */}
+    <Box style={{ height: 100, flexDirection: 'row', alignItems: 'center', gap: 16 }}>
+        <Box style={{ width: 6, height: 38, background: '#E8478B', borderRadius: 3 }} />
+        <Text style={{ fontSize: 36, fontWeight: 'bold', color: '#1F2430' }}>
+            先切成中文界面
+        </Text>
+        <Text style={{ fontSize: 19, color: '#8A93A6' }}>
+            官网默认英文，先切中文再照着做
+        </Text>
+    </Box>
+
+    {/* ===== B · 内容区：左截图 + 右步骤 ===== */}
+    <Box style={{ flex: 1, flexDirection: 'row', gap: 26, alignItems: 'center' }}>
+
+        {/* 左：欢迎弹窗实拍（「用户界面语言」里「简」已选中） */}
+        <Box style={{
+            width: 560, height: 440, borderRadius: 12, overflow: 'hidden',
+            background: '#FFFFFF', border: '1px solid #D5DAE4',
+            alignItems: 'center', justifyContent: 'center',
+            boxShadow: '0 6px 24px rgba(31,36,48,0.18)',
+        }}>
+            <Image src="assets/web_lang_dialog.png" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+        </Box>
+
+        {/* 右：说明 */}
+        <Box style={{ flex: 1, flexDirection: 'column', gap: 15 }}>
+
+            <Box style={{ flexDirection: 'row', gap: 12, alignItems: 'flex-start' }}>
+                <Box style={{
+                    width: 30, height: 30, borderRadius: 8, background: '#E8478B',
+                    alignItems: 'center', justifyContent: 'center',
+                }}>
+                    <Text style={{ fontSize: 16, fontWeight: 'bold', color: '#FFFFFF' }}>1</Text>
+                </Box>
+                <Box style={{ flex: 1, flexDirection: 'column' }}>
+                    <Text style={{ fontSize: 18, fontWeight: 'bold', color: '#1F2430' }}>第一次进会弹设置框</Text>
+                    <Text style={{ fontSize: 14, color: '#5A6376', lineHeight: 1.4 }}>
+                        里面就有「用户界面语言」，点「简」
+                    </Text>
+                </Box>
+            </Box>
+
+            <Box style={{ flexDirection: 'row', gap: 12, alignItems: 'flex-start' }}>
+                <Box style={{
+                    width: 30, height: 30, borderRadius: 8, background: '#E8478B',
+                    alignItems: 'center', justifyContent: 'center',
+                }}>
+                    <Text style={{ fontSize: 16, fontWeight: 'bold', color: '#FFFFFF' }}>2</Text>
+                </Box>
+                <Box style={{ flex: 1, flexDirection: 'column' }}>
+                    <Text style={{ fontSize: 18, fontWeight: 'bold', color: '#1F2430' }}>已经访问过了？</Text>
+                    <Text style={{ fontSize: 14, color: '#5A6376', lineHeight: 1.4 }}>
+                        去 用户档案 → 设置，同样能改
+                    </Text>
+                </Box>
+            </Box>
+
+            <Box style={{
+                flexDirection: 'row', gap: 10, alignItems: 'flex-start',
+                background: 'rgba(232,71,139,0.07)', borderRadius: 10, padding: '11px 15px',
+                marginTop: 2,
+            }}>
+                <Box style={{ width: 4, height: 44, background: '#E8478B', borderRadius: 2 }} />
+                <Box style={{ flex: 1, flexDirection: 'column' }}>
+                    <Text style={{ fontSize: 14, fontWeight: 'bold', color: '#1F2430', lineHeight: 1.45 }}>
+                        切成中文只是为了对得上这份说明
+                    </Text>
+                    <Text style={{ fontSize: 14, color: '#5A6376', lineHeight: 1.45 }}>
+                        不切也能用，只是下一页的按钮名字会对不上（导入资料 = Import）。
+                    </Text>
+                </Box>
+            </Box>
+
+        </Box>
+    </Box>
+
+    {/* ===== C · 页脚条 ===== */}
+    <Box style={{ height: 60, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+        <Text style={{ fontSize: 15, color: '#8A93A6' }}>BestdoriHelper 使用说明</Text>
+        <Text style={{ fontSize: 15, color: '#8A93A6' }}>13 / 15</Text>
+    </Box>
+
+</Slide>

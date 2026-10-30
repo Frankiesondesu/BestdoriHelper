@@ -93,6 +93,14 @@ def main() -> int:
                 ep[k] += int(item.get(k) or 0)
         if not lvmax:
             continue
+        # ⚠️ 特训的**固定加成**要单独加。Bestdori 的 `stat[满级]` 只含等级成长，
+        # 特训那块 `stat.training.{performance,technique,visual}`（如 400/400/400）
+        # 是额外加的 —— 组队工具源码里是 `m[i] += stat.training[i]`。
+        # 漏掉的话每张 4★/5★ 少 900~1200 综合力，一支队少 5000 上下（约 2.6%）。
+        tr = stat.get("training") or {}
+        trained = [int(tr.get("performance") or 0),
+                   int(tr.get("technique") or 0),
+                   int(tr.get("visual") or 0)]
         out_cards[str(cid)] = {
             "ch": c.get("characterId"),
             "r": c.get("rarity"),
@@ -103,9 +111,9 @@ def main() -> int:
             "s1": [int(lv1.get("performance") or 0),
                    int(lv1.get("technique") or 0),
                    int(lv1.get("visual") or 0)],
-            "sx": [int(lvmax.get("performance") or 0),
-                   int(lvmax.get("technique") or 0),
-                   int(lvmax.get("visual") or 0)],
+            "sx": [int(lvmax.get("performance") or 0) + trained[0],
+                   int(lvmax.get("technique") or 0) + trained[1],
+                   int(lvmax.get("visual") or 0) + trained[2]],
             "ep": [ep["performance"], ep["technique"], ep["visual"]],
         }
 

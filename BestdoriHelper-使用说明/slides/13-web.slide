@@ -36,7 +36,7 @@
                 <Box style={{ flex: 1, flexDirection: 'column' }}>
                     <Text style={{ fontSize: 18, fontWeight: 'bold', color: '#1F2430' }}>先登录</Text>
                     <Text style={{ fontSize: 14, color: '#5A6376', lineHeight: 1.4 }}>
-                        页面中部 Cloud Storage 那段文字里的 Log In
+                        页面中部「云存取」那段里的 登录
                     </Text>
                 </Box>
             </Box>
@@ -49,9 +49,9 @@
                     <Text style={{ fontSize: 16, fontWeight: 'bold', color: '#FFFFFF' }}>2</Text>
                 </Box>
                 <Box style={{ flex: 1, flexDirection: 'column' }}>
-                    <Text style={{ fontSize: 18, fontWeight: 'bold', color: '#1F2430' }}>点侧栏 Import</Text>
+                    <Text style={{ fontSize: 18, fontWeight: 'bold', color: '#1F2430' }}>点侧栏 导入资料</Text>
                     <Text style={{ fontSize: 14, color: '#5A6376', lineHeight: 1.4 }}>
-                        左栏 PROFILE 组里，Cloud Storage 下一行
+                        左栏「用户档案」组里，云存取下一行
                     </Text>
                 </Box>
             </Box>
@@ -66,7 +66,7 @@
                 <Box style={{ flex: 1, flexDirection: 'column' }}>
                     <Text style={{ fontSize: 18, fontWeight: 'bold', color: '#1F2430' }}>粘贴档案</Text>
                     <Text style={{ fontSize: 14, color: '#5A6376', lineHeight: 1.4 }}>
-                        粘进 Profile Data 文本框
+                        粘进「用户档案数据」文本框
                     </Text>
                 </Box>
             </Box>
@@ -79,7 +79,7 @@
                     <Text style={{ fontSize: 16, fontWeight: 'bold', color: '#FFFFFF' }}>4</Text>
                 </Box>
                 <Box style={{ flex: 1, flexDirection: 'column' }}>
-                    <Text style={{ fontSize: 18, fontWeight: 'bold', color: '#1F2430' }}>点 Import</Text>
+                    <Text style={{ fontSize: 18, fontWeight: 'bold', color: '#1F2430' }}>点 导入</Text>
                     <Text style={{ fontSize: 14, color: '#5A6376', lineHeight: 1.4 }}>
                         文本框左下角正下方那个按钮
                     </Text>
@@ -97,7 +97,7 @@
                         登录入口不在右上角，在页面中部
                     </Text>
                     <Text style={{ fontSize: 14, color: '#5A6376', lineHeight: 1.45 }}>
-                        第一次进会弹「Welcome」设置框，关掉就行。等级 / 技能填的是满值，只影响算分，不影响卡牌归属。
+                        上一页已把界面切成中文，所以这里的截图都是中文的。等级 / 技能填的是满值，只影响算分，不影响卡牌归属。
                     </Text>
                 </Box>
             </Box>
@@ -108,7 +108,7 @@
     {/* ===== C · 页脚条 ===== */}
     <Box style={{ height: 60, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
         <Text style={{ fontSize: 15, color: '#8A93A6' }}>BestdoriHelper 使用说明</Text>
-        <Text style={{ fontSize: 15, color: '#8A93A6' }}>13 / 14</Text>
+        <Text style={{ fontSize: 15, color: '#8A93A6' }}>14 / 15</Text>
     </Box>
 
 </Slide>

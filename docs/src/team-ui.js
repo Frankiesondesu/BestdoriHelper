@@ -7,7 +7,7 @@
  *   data/charts/{diff}/{id}.json   预拉的谱面（note 时间表）
  */
 
-import { parseChart, bestTeams, eventBonusFor, eventPoints, pickAreaItems } from './team.js';
+import { parseChart, bestTeams, eventBonusFor, pickAreaItems } from './team.js';
 import { parseProfile } from './profile.js';
 import { recognizeImage, parseOcrLines } from './ocr.js';
 import { fetchChart } from './chart-fetch.js';
@@ -207,7 +207,8 @@ function pool() {
     const out = [];
     for (const c of PROFILE.cards) {
       const meta = TEAM.cards[String(c.id)];
-      if (meta) out.push({ ...meta, id: c.id, trained: c.trained });
+      // master 是**星光等级**（0~4），直接决定活动加成里的 0~15% —— 不能丢
+      if (meta) out.push({ ...meta, id: c.id, trained: c.trained, master: c.master ?? 0 });
     }
     return out;
   }
@@ -227,27 +228,39 @@ function pool() {
   return out;
 }
 
-function teamCards(list) {
+function teamCards(list, ev) {
   return list.map((c) => {
     const info = (window.__BDH_STATE?.meta?.cards || {})[String(c.id)] || {};
     const name = info.name || `#${c.id}`;
-    return `<img src="data/thumbs/${c.id}_n.webp" alt="${name}" title="${name}"
+    // 每张卡自己的活动加成（属性+角色+成员+星光）。鼠标悬停能看出「这队为什么
+    // 加成高」—— 尤其是哪张卡是本期成员卡、哪张只是凑属性的通用卡。
+    const b = ev ? eventBonusFor(c, ev, c.master ?? 0) : null;
+    // 用 `bonus`（单卡加成原始值），不要用 `point` —— 综合力型活动里 point 恒为 0
+    const tip = b
+      ? `${name}｜活动加成 +${b.bonus}%（属性${b.parts.attr} 角色${b.parts.char} 一致${b.parts.double} 星光${b.parts.star}）${b.member ? ' · 本期活动卡' : ''}`
+      : name;
+    return `<img src="data/thumbs/${c.id}_n.webp" alt="${name}" title="${tip}"
                  loading="lazy" onerror="this.onerror=null;this.src='data/thumbs/${c.id}_t.webp'">`;
   }).join('');
 }
 
-function render(results, meta) {
+export function render(results, meta) {
   if (!results.length) {
     $('tmBody').innerHTML = '<div class="empty">没有可用的卡。先在「结果」页识别截图。</div>';
     return;
   }
+  const ev = meta.event || null;
+  const withBonus = ev && results.some((r) => r.bonusSum != null);
   const rows = results.map((r, i) => `
     <tr>
       <td class="mono">${i + 1}</td>
-      <td><div class="tm-team">${teamCards(r.team)}</div></td>
+      <td><div class="tm-team">${teamCards(r.team, ev)}</div></td>
       <td class="mono">${r.power.toLocaleString()}</td>
+      ${withBonus ? `<td class="mono"><b>${Math.round(r.bonusSum)}%</b>
+        <div class="footnote">均 ${r.bonusPct.toFixed(1)}%</div></td>` : ''}
       <td class="mono">${r.score.toLocaleString()}</td>
-      <td class="mono">${r.points == null ? '—' : `<b>${r.points.toLocaleString()}</b>`}</td>
+      <td class="mono">${r.points == null ? '—' : `<b>${r.points.toLocaleString()}</b>`
+        + (r.supportAdded ? `<div class="footnote">含支援 +${r.supportAdded.toLocaleString()}</div>` : '')}</td>
     </tr>`).join('');
 
   $('tmBody').innerHTML = `
@@ -257,12 +270,20 @@ function render(results, meta) {
       <div style="overflow-x:auto">
         <table>
           <thead><tr><th>#</th><th>队伍（左起为队长）</th><th>综合力</th>
+            ${withBonus ? '<th>活动加成</th>' : ''}
             <th>预计分数</th><th>活动点数</th></tr></thead>
           <tbody>${rows}</tbody>
         </table>
       </div>
       <p class="footnote">分数模型：综合力 × Lv加成 × 300% × 判定/COMBO/技能。
-        用于横向比较队伍强弱，绝对值与实战可能有几个百分点偏差。</p>
+        这里是<b>全 PERFECT + 全程不断连</b>的理论值，实战一定更低 ——
+        它用于横向比较队伍强弱，不是「这一局能打多少分」。</p>
+      ${withBonus ? `<p class="footnote">活动加成 = 属性 + 角色 + 一致 + 当期卡 + 星光，
+        逐卡相加；表格里是该队 5 张卡的<b>合计</b>，游戏结算界面显示的就是这个数，
+        点数公式也是按这个合计乘的。<br>
+        竞演 / 挑战 / FES / 组曲的加成作用在<b>综合力</b>上（进分数），任务 / 试炼 /
+        传统的加成作用在<b>点数</b>上 —— 同一份加成只走一边，不重复计算。
+        综合力高但没吃加成的队，点数往往不如档期卡队，这就是排序按点数而不是分数的原因。</p>` : ''}
     </div>`;
 }
 
@@ -643,42 +664,39 @@ export async function runTeamCalc() {
       </div>`;
     // 实际道具等级：来自「道具」页（bdh.items.v1），没有就退回手填的三组百分比
     let itemLevels = null;
+    let itemDetail = null;
     try {
       const raw = localStorage.getItem('bdh.items.v1');
       if (raw) {
         const it = JSON.parse(raw);
         if (it && Object.keys(it).length) itemLevels = it;
       }
+      // 道具明细（中文名）——用来判断属性道具管哪个属性、杂志加哪一围
+      const dRaw = localStorage.getItem('bdh.itemsDetail.v1');
+      if (dRaw) itemDetail = JSON.parse(dRaw);
     } catch { /* 忽略 */ }
 
     let results = await bestTeams(p, parsed, ctx, {
       topN: 30,
       itemLevels,                      // ← 有实际等级就逐队自动选道具
+      itemDetail,                      // ← 道具中文名（判断属性/杂志作用围）
       characters: TEAM.characters,
       onProgress: (f) => {
         const bar = $('tmProg');
         if (bar) bar.style.width = `${Math.round(f * 100)}%`;
         const t = $('tmProgTxt');
         if (t) t.textContent =
-          `枚举组合 ${Math.round(f * 100)}%（卡池 ${p.length} 张，取三围前 12 + 加成前 12 枚举）`;
+          `枚举组合 ${Math.round(f * 100)}%（卡池 ${p.length} 张，三围前列 + 全部档期卡参与枚举）`;
       },
     });
 
-    // 活动点数：逐卡算加成，取全队平均（与游戏结算的加成口径一致）
-    if (ev) {
-      for (const r of results) {
-        const bonuses = r.team.map((c) => eventBonusFor(c, ev, 0).point);
-        const avg = bonuses.reduce((a, b) => a + b, 0) / bonuses.length;
-        r.bonusPct = avg;
-        r.points = eventPoints(r.score, ev, { bonus: avg, boost: 5 });
-      }
-      // 换活动时，追点数比追分数更常见 —— 有活动就按点数排
-      results.sort((a, b) => b.points - a.points);
-    }
+    // 活动点数已经在 bestTeams 里算好（逐卡加成取平均，与游戏结算口径一致），
+    // 这里只负责按点数排序 —— 换活动时追点数比追分数更常见。
+    if (ev) results.sort((a, b) => (b.points ?? 0) - (a.points ?? 0));
     results = results.slice(0, 10);
     render(results, {
       diff, level: ctx.songLevel, notes: parsed.notes.length,
-      skillLv: ctx.level,
+      skillLv: ctx.level, event: ev,
     });
   } catch (e) {
     $('tmBody').innerHTML = `<div class="empty">${e.message}</div>`;
