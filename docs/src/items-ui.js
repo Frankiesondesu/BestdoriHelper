@@ -5,7 +5,7 @@
  * 结果存 localStorage（`bdh.items.v1`），组队页初始化时自动读取。
  */
 
-import { recognizeImage, parseOcrLines } from './ocr.js';
+import { recognizeImage, parseOcrLines, prewarm } from './ocr.js';
 
 const ITEM_SLOTS_CN = {
   PoppinParty: "Poppin'Party", Afterglow: 'Afterglow', PastelPalettes: 'Pastel*Palettes',
@@ -89,6 +89,17 @@ function savePct() {
 }
 
 export function initItemsTab() {
+  // 进页就在后台把 OCR 模型备好，用户点「识别」时不用等下载
+  prewarm((st) => {
+    const prog = $('itProgress');
+    if (!prog) return;
+    if (st === 'loading') prog.textContent = 'OCR 模型后台准备中…（首次约 10MB，之后走缓存）';
+    else if (st === 'ready') {
+      prog.textContent = 'OCR 已就绪，选截图即可开始';
+      setTimeout(() => { if (prog.textContent?.startsWith('OCR 已就绪')) prog.textContent = ''; }, 4000);
+    } else if (st === 'failed') prog.textContent = 'OCR 模型加载失败（网络问题？），可改用「导入 JSON…」';
+  });
+
   const items = loadItems();
   renderTable(items);
   refreshPctInputs(items);

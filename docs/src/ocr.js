@@ -27,6 +27,9 @@ const CDN_LIST = [
 ];
 
 let loading = null;
+/** 复用的 worker（创建一次，别每次识别都新建——语言包要重新载入） */
+let workerPromise = null;
+let warmState = 'idle';    // idle | loading | ready | failed
 
 /** 按顺序尝试多个 CDN，哪个通用哪个 */
 function loadScript() {
@@ -140,14 +143,53 @@ export function parseOcrText(text) {
  * @param {File|Blob|string} image 图片文件或 dataURL
  * @param {(p:number)=>void} [onProgress] 0~1
  */
-export async function recognizeImage(image, onProgress) {
+/**
+ * 后台预热：进「道具」页时就调用，把脚本和中文模型先载好。
+ * 用户真正点「识别」时就不用等那 5~10 秒的下载。
+ *
+ * @param {(state:string)=>void} [onState] 'loading' | 'ready' | 'failed'
+ */
+export function prewarm(onState) {
+  if (warmState === 'ready') { if (onState) onState('ready'); return Promise.resolve(true); }
+  if (workerPromise) { if (onState) onState('loading'); return workerPromise.then(() => true).catch(() => false); }
+  warmState = 'loading';
+  if (onState) onState('loading');
+  workerPromise = (async () => {
+    await loadScript();
+    return Tesseract.createWorker('chi_sim+eng', 1, { cachePath: 'bdh-ocr' });
+  })();
+  return workerPromise
+    .then((w) => { warmState = 'ready'; if (onState) onState('ready'); return w; })
+    .catch((e) => { warmState = 'failed'; workerPromise = null; if (onState) onState('failed'); throw e; });
+}
+
+export function warmStatus() { return warmState; }
+
+async function getWorker(onProgress) {
+  if (workerPromise) {
+    const w = await workerPromise;
+    // 复用时要重新挂 logger（进度回调是每次识别不同的闭包）
+    if (onProgress) {
+      w._logger = onProgress;
+    }
+    return w;
+  }
   await loadScript();
-  const worker = await Tesseract.createWorker('chi_sim+eng', 1, {
+  workerPromise = Tesseract.createWorker('chi_sim+eng', 1, {
     cachePath: 'bdh-ocr',
     logger: (m) => {
-      if (m.status === 'recognizing text' && onProgress) onProgress(m.progress || 0);
+      const cb = workerPromise && workerPromise._cb;
+      if (m.status === 'recognizing text' && cb) cb(m.progress || 0);
     },
   });
+  return workerPromise;
+}
+
+export async function recognizeImage(image, onProgress) {
+  const worker = await getWorker(onProgress);
+  // 把本次的进度回调挂到 worker 上（Tesseract 的 logger 在创建时固定，
+  // 复用 worker 时只能这样把进度转出来）
+  if (workerPromise) workerPromise._cb = onProgress;
   try {
     const { data } = await worker.recognize(image);
     // **必须带坐标**：Tesseract 的纯文本是按识别顺序排的，同一行的「等级」
@@ -160,6 +202,7 @@ export async function recognizeImage(image, onProgress) {
       h: (l.bbox?.y1 ?? 0) - (l.bbox?.y0 ?? 0),
     })).filter((l) => l.text);
   } finally {
-    await worker.terminate();
+    // **不要 terminate**：worker 要复用（语言包重载很贵）。
+    // 只有页面卸载时才该销毁，这里不处理。
   }
 }
