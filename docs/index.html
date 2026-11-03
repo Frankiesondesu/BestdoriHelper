@@ -282,6 +282,17 @@
       </div>
     </div>
 
+    <!-- 队伍详情：点结果表任意一行打开 -->
+    <div class="lightbox" id="teamLb" hidden role="dialog" aria-modal="true">
+      <div class="song-lb-panel team-detail-panel">
+        <div class="lb-head">
+          <span class="song-lb-title" id="teamLbTitle">队伍详情</span>
+          <button class="small" id="teamLbClose" title="关闭（Esc）">关闭</button>
+        </div>
+        <div class="lb-body" id="teamLbBody"></div>
+      </div>
+    </div>
+
     <!-- 选歌弹窗：用现有的 .lightbox 作用浮层（position:fixed; inset:0; z-index:60） -->
     <div class="lightbox" id="songLb" hidden role="dialog" aria-modal="true">
       <!-- 居中面板：全屏铺开时头部控件会被全局 width:100% 撑成四行（实测 217px 高），

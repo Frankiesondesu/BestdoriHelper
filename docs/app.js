@@ -1755,7 +1755,8 @@ function bind() {
   // 抽屉开着时按 Esc 关掉（桌面习惯）
   document.addEventListener('keydown', (e) => {
     if (e.key !== 'Escape') return;
-    // 先关最上层的弹层（粘贴面板 / 选歌），再关大图，最后是日志抽屉
+    // 先关最上层的弹层（队伍详情 / 粘贴面板 / 选歌），再关大图，最后是日志抽屉
+    if (!$('teamLb').hidden) { $('teamLbClose').click(); return; }
     if (!$('profileLb').hidden) { $('pasteClose').click(); return; }
     if (!$('songLb').hidden) { $('songLbClose').click(); return; }
     if (!$('lightbox').hidden) { closeLightbox(); return; }
@@ -1765,6 +1766,7 @@ function bind() {
   // 点选歌弹窗的空白处（面板外）也关掉
   $('songLb').onclick = (e) => { if (e.target.id === 'songLb') $('songLbClose').click(); };
   $('profileLb').onclick = (e) => { if (e.target.id === 'profileLb') $('pasteClose').click(); };
+  $('teamLb').onclick = (e) => { if (e.target.id === 'teamLb') $('teamLbClose').click(); };
 
   // 识别结果只在内存里，刷新/关页就没了 —— 有结果时拦一下
   window.addEventListener('beforeunload', (e) => {

@@ -17,6 +17,12 @@ let SONGS = null;
 let EVENTS = null;
 /** 导入的 Bestdori 档案（有值时优先用它当卡池） */
 let PROFILE = null;
+/** 最近一次计算结果与它对应的口径 —— 详情弹层点开时用 */
+let lastResults = null;
+let lastMeta = null;
+
+const ATTR_CN = { powerful: '强力', happy: '快乐', pure: '纯洁', cool: '酷炫' };
+const ATTR_COLOR = { powerful: '#ff4d4d', happy: '#ffb84d', pure: '#4dd98a', cool: '#4d9bff' };
 
 const $ = (id) => document.getElementById(id);
 
@@ -247,6 +253,8 @@ function teamCards(list, ev) {
 }
 
 export function render(results, meta) {
+  lastResults = results;
+  lastMeta = meta;
   if (!results.length) {
     $('tmBody').innerHTML = '<div class="empty">没有可用的卡。先在「结果」页识别截图。</div>';
     return;
@@ -254,7 +262,7 @@ export function render(results, meta) {
   const ev = meta.event || null;
   const withBonus = ev && results.some((r) => r.bonusSum != null);
   const rows = results.map((r, i) => `
-    <tr>
+    <tr class="tm-row" data-team="${i}" title="点开看这支队伍的卡面明细">
       <td class="mono">${i + 1}</td>
       <td><div class="tm-team">${teamCards(r.team, ev)}</div></td>
       <td class="mono">${r.power.toLocaleString()}</td>
@@ -268,7 +276,7 @@ export function render(results, meta) {
   $('tmBody').innerHTML = `
     <div class="card">
       <div class="card-label">最优队伍 <span class="footnote">${meta.diff} · Lv${meta.level} ·
-        ${meta.notes} NOTE · 技能等级 ${meta.skillLv}</span></div>
+        ${meta.notes} NOTE · 技能等级 ${meta.skillLv} · 点任意一行看详情</span></div>
       <div style="overflow-x:auto">
         <table>
           <thead><tr><th>#</th><th>队伍（左起为队长）</th><th>综合力</th>
@@ -287,6 +295,84 @@ export function render(results, meta) {
         传统的加成作用在<b>点数</b>上 —— 同一份加成只走一边，不重复计算。
         综合力高但没吃加成的队，点数往往不如档期卡队，这就是排序按点数而不是分数的原因。</p>` : ''}
     </div>`;
+
+  // 点行看详情（手机上表格窄，详情放进弹层而不是继续加列）
+  $('tmBody').querySelectorAll('[data-team]').forEach((tr) => {
+    tr.onclick = () => openTeamDetail(Number(tr.dataset.team));
+  });
+}
+
+/** 卡面显示信息：名字/角色/乐队/稀有度/属性 */
+function cardMeta(id) {
+  const meta = window.__BDH_STATE?.meta;
+  const c = meta?.cards?.[String(id)] || {};
+  const ch = meta?.characters?.[String(c.ch)] || {};
+  const band = meta?.bands?.[String(ch.b)] || {};
+  return {
+    name: c.t || `卡 ${id}`,
+    chName: ch.n || '',
+    band: band.n || '',
+    r: c.r || 0,
+    a: c.a || '',
+  };
+}
+
+/** 打开某支队伍的详情：合计数据 + 五张卡的卡名/编号/属性/技能/加成 */
+function openTeamDetail(i) {
+  const r = lastResults?.[i];
+  const box = $('teamLb');
+  if (!r || !box) return;
+  const ev = lastMeta?.event || null;
+
+  const cards = r.team.map((c, k) => {
+    const m = cardMeta(c.id);
+    const sk = TEAM.skills?.[String(c.sk)] || {};
+    const b = ev ? eventBonusFor(c, ev, c.master ?? 0) : null;
+    const ac = ATTR_COLOR[m.a] || '#888';
+    const tags = [
+      m.a ? `<span class="pill" style="color:${ac};border-color:${ac}66">${ATTR_CN[m.a] || m.a}</span>` : '',
+      m.r ? `<span class="pill">${m.r}★</span>` : '',
+      sk.up != null ? `<span class="pill">技能 +${sk.up}%</span>` : '',
+      b && b.bonus ? `<span class="pill ok">加成 +${b.bonus}%</span>` : '',
+      k === 0 ? '<span class="pill warn">队长</span>' : '',
+    ].filter(Boolean).join('');
+
+    return `<a class="tm-dc" href="https://bestdori.com/info/cards/${c.id}"
+        target="_blank" rel="noopener"
+        title="在 Bestdori 打开卡 ${c.id}">
+      <img src="data/thumbs/${c.id}_n.webp" alt="" loading="lazy"
+           onerror="this.onerror=null;this.src='data/thumbs/${c.id}_t.webp'">
+      <span class="tm-dc-main">
+        <span class="tm-dc-name">${m.name}</span>
+        <span class="tm-dc-sub">${[m.chName, m.band, `卡 ${c.id}`].filter(Boolean).join(' · ')}</span>
+        <span class="tm-dc-tags">${tags}</span>
+      </span>
+      <span class="tm-dc-go">↗</span>
+    </a>`;
+  }).join('');
+
+  const stat = (label, value, sub = '') =>
+    `<div class="tm-detail-stat"><span>${label}</span><b>${value}</b>` +
+    (sub ? `<em>${sub}</em>` : '') + '</div>';
+
+  $('teamLbTitle').textContent = `第 ${i + 1} 名队伍`;
+  $('teamLbBody').innerHTML = `
+    <div class="tm-detail-sum">
+      ${stat('综合力', r.power.toLocaleString())}
+      ${stat('预计分数', r.score.toLocaleString())}
+      ${stat('活动点数', r.points == null ? '—' : r.points.toLocaleString(),
+        r.supportAdded ? `含支援 +${r.supportAdded.toLocaleString()}` : '')}
+      ${ev ? stat('活动加成', `${Math.round(r.bonusSum)}%`, `均 ${r.bonusPct.toFixed(1)}%`) : ''}
+    </div>
+    <div class="tm-detail-list">${cards}</div>
+    <p class="footnote" style="margin:10px 0 0">
+      分数是<b>全 PERFECT + 全程不断连</b>的理论值，用来横向比较队伍，不是这一局的实际得分。
+      点任意一张卡可在 Bestdori 打开卡面页核对。
+    </p>`;
+
+  box.hidden = false;
+  $('teamLbClose').onclick = () => { box.hidden = true; };
+  box.querySelector('.lb-body').scrollTop = 0;
 }
 
 // ---------------------------------------------------------------------------
