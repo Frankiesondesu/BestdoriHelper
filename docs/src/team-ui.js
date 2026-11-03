@@ -261,6 +261,25 @@ export function render(results, meta) {
   }
   const ev = meta.event || null;
   const withBonus = ev && results.some((r) => r.bonusSum != null);
+
+  // 「为什么不是综合力最高的那队」—— 用本次结果里分数最高的一队做对照，
+  // 把取舍摊开写：分数差几个百分点、加成差几个点、点数差多少。
+  const topScore = meta.bestScore
+    || results.reduce((a, b) => (b.score > a.score ? b : a), results[0]);
+  const ptDelta = Math.round((results[0].points ?? 0) - (topScore.points ?? 0));
+  const scorePct = topScore.score ? (1 - results[0].score / topScore.score) * 100 : 0;
+  const bonusDelta = (results[0].bonusSum ?? 0) - (topScore.bonusSum ?? 0);
+  const tradeoff = withBonus && topScore !== results[0] && ptDelta > 0
+    ? `<p class="footnote">
+        <b>为什么不是综合力最高的那队？</b> 只看分数的话，
+        <b>${Math.round(topScore.score).toLocaleString()}</b> 分（综合力
+        ${Math.round(topScore.power).toLocaleString()}、加成 ${Math.round(topScore.bonusSum)}%）
+        确实更高，但点数只有 <b>${Math.round(topScore.points).toLocaleString()}</b>，
+        比推荐队少 <b>${ptDelta.toLocaleString()}</b>。推荐队分数低
+        <b>${scorePct.toFixed(1)}%</b>，加成多 <b>${Math.round(bonusDelta)}</b> 个百分点 ——
+        加成是直接乘在点数上的，所以按点数排时档期卡优先。
+      </p>`
+    : '';
   const rows = results.map((r, i) => `
     <tr class="tm-row" data-team="${i}" title="点开看这支队伍的卡面明细">
       <td class="mono">${i + 1}</td>
@@ -288,6 +307,7 @@ export function render(results, meta) {
       <p class="footnote">分数模型：综合力 × Lv加成 × 300% × 判定/COMBO/技能。
         这里是<b>全 PERFECT + 全程不断连</b>的理论值，实战一定更低 ——
         它用于横向比较队伍强弱，不是「这一局能打多少分」。</p>
+      ${tradeoff}
       ${withBonus ? `<p class="footnote">活动加成 = 属性 + 角色 + 一致 + 当期卡 + 星光，
         逐卡相加；表格里是该队 5 张卡的<b>合计</b>，游戏结算界面显示的就是这个数，
         点数公式也是按这个合计乘的。<br>
@@ -856,9 +876,19 @@ export async function runTeamCalc() {
     // 这里只负责按点数排序 —— 换活动时追点数比追分数更常见。
     if (ev) results.sort((a, b) => (b.points ?? 0) - (a.points ?? 0));
     results = results.slice(0, 10);
+    // 再算一次「只看分数」的最优队：用来在结果里给出取舍对照。
+    // 它常常不在按点数排的 Top30 里（加成 0 的队点数很低），所以必须单独算。
+    let bestScore = null;
+    try {
+      const byScore = await bestTeams(p, parsed, ctx, {
+        topN: 1, itemLevels, itemDetail, characters: TEAM.characters, sortBy: 'score',
+      });
+      bestScore = byScore[0] || null;
+    } catch { /* 对照算不出来不影响主结果 */ }
+
     render(results, {
       diff, level: ctx.songLevel, notes: parsed.notes.length,
-      skillLv: ctx.level, event: ev,
+      skillLv: ctx.level, event: ev, bestScore,
     });
     // 结果块在设置区下面，手机上整块落在首屏之外 —— 算完直接把用户带过去，
     // 否则点完按钮只看到页面没动，很容易以为没生效。
