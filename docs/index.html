@@ -219,6 +219,11 @@
         </div>
         <div class="btn-row">
           <button class="small primary" id="tmRun">计算最优队伍</button>
+          <!-- 排序口径：追活动点数 / 追单局分数（打歌榜） -->
+          <div class="seg" id="tmSort" role="group" aria-label="排序方式">
+            <button type="button" data-sort="points" class="on" title="活动点数最高">按点数</button>
+            <button type="button" data-sort="score" title="单局分数最高">按分数</button>
+          </div>
           <button class="small" id="tmExport">导出设置</button>
           <button class="small" id="tmImport">导入设置</button>
           <input type="file" id="tmImportFile" accept="application/json" hidden>

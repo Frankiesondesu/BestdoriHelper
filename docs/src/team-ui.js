@@ -20,6 +20,8 @@ let PROFILE = null;
 /** 最近一次计算结果与它对应的口径 —— 详情弹层点开时用 */
 let lastResults = null;
 let lastMeta = null;
+/** 排序口径：'points' 追活动点数 / 'score' 追单局分数 */
+let sortMode = 'points';
 
 const ATTR_CN = { powerful: '强力', happy: '快乐', pure: '纯洁', cool: '酷炫' };
 const ATTR_COLOR = { powerful: '#ff4d4d', happy: '#ffb84d', pure: '#4dd98a', cool: '#4d9bff' };
@@ -262,24 +264,42 @@ export function render(results, meta) {
   const ev = meta.event || null;
   const withBonus = ev && results.some((r) => r.bonusSum != null);
 
-  // 「为什么不是综合力最高的那队」—— 用本次结果里分数最高的一队做对照，
-  // 把取舍摊开写：分数差几个百分点、加成差几个点、点数差多少。
-  const topScore = meta.bestScore
-    || results.reduce((a, b) => (b.score > a.score ? b : a), results[0]);
-  const ptDelta = Math.round((results[0].points ?? 0) - (topScore.points ?? 0));
-  const scorePct = topScore.score ? (1 - results[0].score / topScore.score) * 100 : 0;
-  const bonusDelta = (results[0].bonusSum ?? 0) - (topScore.bonusSum ?? 0);
-  const tradeoff = withBonus && topScore !== results[0] && ptDelta > 0
-    ? `<p class="footnote">
-        <b>为什么不是综合力最高的那队？</b> 只看分数的话，
-        <b>${Math.round(topScore.score).toLocaleString()}</b> 分（综合力
-        ${Math.round(topScore.power).toLocaleString()}、加成 ${Math.round(topScore.bonusSum)}%）
-        确实更高，但点数只有 <b>${Math.round(topScore.points).toLocaleString()}</b>，
-        比推荐队少 <b>${ptDelta.toLocaleString()}</b>。推荐队分数低
-        <b>${scorePct.toFixed(1)}%</b>，加成多 <b>${Math.round(bonusDelta)}</b> 个百分点 ——
-        加成是直接乘在点数上的，所以按点数排时档期卡优先。
-      </p>`
-    : '';
+  // 取舍说明：按点数排时对照「分数最高」的队，按分数排时对照「点数最高」的队。
+  const byScore = meta.sortMode === 'score';
+  const cmp = meta.compare;
+  let tradeoff = '';
+  if (cmp && withBonus && cmp !== results[0]) {
+    if (!byScore) {
+      const d = Math.round((results[0].points ?? 0) - (cmp.points ?? 0));
+      const pct = cmp.score ? (1 - results[0].score / cmp.score) * 100 : 0;
+      const bd = (results[0].bonusSum ?? 0) - (cmp.bonusSum ?? 0);
+      if (d > 0) {
+        tradeoff = `<p class="footnote">
+          <b>为什么不是综合力最高的那队？</b> 只看分数的话，
+          <b>${Math.round(cmp.score).toLocaleString()}</b> 分（综合力
+          ${Math.round(cmp.power).toLocaleString()}、加成 ${Math.round(cmp.bonusSum)}%）
+          确实更高，但点数只有 <b>${Math.round(cmp.points).toLocaleString()}</b>，
+          比推荐队少 <b>${d.toLocaleString()}</b>。推荐队分数低
+          <b>${pct.toFixed(1)}%</b>，加成多 <b>${Math.round(bd)}</b> 个百分点 ——
+          加成是直接乘在点数上的，所以按点数排时档期卡优先。
+        </p>`;
+      }
+    } else {
+      const d = Math.round((cmp.points ?? 0) - (results[0].points ?? 0));
+      const pct = results[0].score ? (1 - cmp.score / results[0].score) * 100 : 0;
+      const bd = (cmp.bonusSum ?? 0) - (results[0].bonusSum ?? 0);
+      if (d > 0) {
+        tradeoff = `<p class="footnote">
+          <b>这队分数最高，但不是点数最高的。</b> 按点数排的推荐队是
+          <b>${Math.round(cmp.points).toLocaleString()}</b> 点（加成
+          ${Math.round(cmp.bonusSum)}%），比这队多 <b>${d.toLocaleString()}</b>；
+          它的分数低 <b>${pct.toFixed(1)}%</b>、加成多 <b>${Math.round(bd)}</b> 个百分点。
+          打歌榜看这张表，刷活动点数切回「按点数」。
+        </p>`;
+      }
+    }
+  }
+
   const rows = results.map((r, i) => `
     <tr class="tm-row" data-team="${i}" title="点开看这支队伍的卡面明细">
       <td class="mono">${i + 1}</td>
@@ -294,7 +314,7 @@ export function render(results, meta) {
 
   $('tmBody').innerHTML = `
     <div class="card">
-      <div class="card-label">最优队伍 <span class="footnote">${meta.diff} · Lv${meta.level} ·
+      <div class="card-label">最优队伍（按${byScore ? '分数' : '点数'}） <span class="footnote">${meta.diff} · Lv${meta.level} ·
         ${meta.notes} NOTE · 技能等级 ${meta.skillLv} · 点任意一行看详情</span></div>
       <div style="overflow-x:auto">
         <table>
@@ -413,6 +433,7 @@ function readSettings() {
     attrSel: $('tmAttrSel').value,
     attrPct: $('tmAttr').value,
     magPct: $('tmMag').value,
+    sortMode,
   };
 }
 
@@ -424,6 +445,12 @@ function applySettings(cfg) {
   set('tmBandSel', cfg.bandSel); set('tmBand', cfg.bandPct);
   set('tmAttrSel', cfg.attrSel); set('tmAttr', cfg.attrPct);
   set('tmMag', cfg.magPct);
+  if (cfg.sortMode === 'score' || cfg.sortMode === 'points') {
+    sortMode = cfg.sortMode;
+    document.querySelectorAll('#tmSort button').forEach((b) => {
+      b.classList.toggle('on', b.dataset.sort === sortMode);
+    });
+  }
   if (cfg.diff && cfg.diff !== $('tmDiff').value) { $('tmDiff').value = cfg.diff; renderSongList(); }
 }
 
@@ -730,6 +757,23 @@ async function loadDefaultItems() {
   return DEFAULT_ITEMS;
 }
 
+/** 排序切换：点了就重算（有结果时），并记住选择 */
+function bindSort() {
+  const box = $('tmSort');
+  if (!box || box.dataset.bound) return;
+  box.dataset.bound = '1';
+  box.querySelectorAll('button').forEach((btn) => {
+    btn.onclick = () => {
+      const v = btn.dataset.sort;
+      if (v === sortMode) return;
+      sortMode = v;
+      box.querySelectorAll('button').forEach((b) => b.classList.toggle('on', b === btn));
+      persist();
+      if (lastResults) runTeamCalc();
+    };
+  });
+}
+
 export async function initTeamTab() {
   try {
     await ensureData();
@@ -748,6 +792,7 @@ export async function initTeamTab() {
   restore();
   bindPersistence();
   bindProfileImport();
+  bindSort();
 
   // 道具：优先用「道具」页存的结果，没有就用仓库自带的 my-items.json
   try {
@@ -891,6 +936,7 @@ export async function runTeamCalc() {
 
     let results = await bestTeams(p, parsed, ctx, {
       topN: 30,
+      sortBy: sortMode,                // ← 按点数 / 按分数
       itemLevels,                      // ← 有实际等级就逐队自动选道具
       itemDetail,                      // ← 道具中文名（判断属性/杂志作用围）
       characters: TEAM.characters,
@@ -903,23 +949,26 @@ export async function runTeamCalc() {
       },
     });
 
-    // 活动点数已经在 bestTeams 里算好（逐卡加成取平均，与游戏结算口径一致），
-    // 这里只负责按点数排序 —— 换活动时追点数比追分数更常见。
-    if (ev) results.sort((a, b) => (b.points ?? 0) - (a.points ?? 0));
+    // 活动点数已经在 bestTeams 里算好；这里按当前口径再排一次并截断到 10 队
+    results.sort((a, b) => (sortMode === 'score'
+      ? b.score - a.score
+      : (b.points ?? 0) - (a.points ?? 0)));
     results = results.slice(0, 10);
-    // 再算一次「只看分数」的最优队：用来在结果里给出取舍对照。
-    // 它常常不在按点数排的 Top30 里（加成 0 的队点数很低），所以必须单独算。
-    let bestScore = null;
+
+    // 再算一次「另一种口径」的最优队，用来说明取舍。
+    // 它常常不在当前排序的 Top30 里（比如加成 0 的队点数很低），所以必须单独算。
+    let compare = null;
     try {
-      const byScore = await bestTeams(p, parsed, ctx, {
-        topN: 1, itemLevels, itemDetail, characters: TEAM.characters, sortBy: 'score',
+      const other = await bestTeams(p, parsed, ctx, {
+        topN: 1, itemLevels, itemDetail, characters: TEAM.characters,
+        sortBy: sortMode === 'points' ? 'score' : 'points',
       });
-      bestScore = byScore[0] || null;
+      compare = other[0] || null;
     } catch { /* 对照算不出来不影响主结果 */ }
 
     render(results, {
       diff, level: ctx.songLevel, notes: parsed.notes.length,
-      skillLv: ctx.level, event: ev, bestScore,
+      skillLv: ctx.level, event: ev, compare, sortMode,
     });
     // 结果块在设置区下面，手机上整块落在首屏之外 —— 算完直接把用户带过去，
     // 否则点完按钮只看到页面没动，很容易以为没生效。
