@@ -5,7 +5,7 @@
  * 结果存 localStorage（`bdh.items.v1`），组队页初始化时自动读取。
  */
 
-import { recognizeImage, parseOcrLines, prewarm } from './ocr.js';
+import { recognizeImage, parseOcrWords, prewarm } from './ocr.js';
 import { bandItemPct, everyoneItemPct, AREA_ITEM_CURVE } from './team.js';
 
 const ITEM_SLOTS_CN = {
@@ -128,7 +128,7 @@ export function initItemsTab() {
   prewarm((st) => {
     const prog = $('itProgress');
     if (!prog) return;
-    if (st === 'loading') prog.textContent = 'OCR 模型后台准备中…（首次约 10MB，之后走缓存）';
+    if (st === 'loading') prog.textContent = 'OCR 模型后台准备中…（首次约 26MB，之后走缓存）';
     else if (st === 'ready') {
       prog.textContent = 'OCR 已就绪，选截图即可开始';
       setTimeout(() => { if (prog.textContent?.startsWith('OCR 已就绪')) prog.textContent = ''; }, 4000);
@@ -151,20 +151,21 @@ export function initItemsTab() {
       const merged = { ...loadItems() };
       let ok = 0;
       const failed = [];
+      const unknown = [];
 
       try {
         for (let i = 0; i < files.length; i++) {
-          prog.textContent = `识别中 ${i + 1}/${files.length}…（首次需下载模型约 10MB）`;
-          let lines = null;
+          prog.textContent = `识别中 ${i + 1}/${files.length}…（首次约 26MB，随站点下载）`;
+          let res = null;
           try {
-            lines = await recognizeImage(files[i], (p) => {
+            res = await recognizeImage(files[i], (p) => {
               prog.textContent = `识别中 ${i + 1}/${files.length}… ${Math.round(p * 100)}%`;
             });
           } catch (err) {
             failed.push(`${files[i].name}（${err.message}）`);
             continue;
           }
-          const r = parseOcrLines(lines);
+          const r = parseOcrWords(res.words);
           const n = Object.keys(r.items).length;
           if (n) {
             ok += 1;
@@ -174,13 +175,15 @@ export function initItemsTab() {
           } else {
             failed.push(files[i].name);
           }
+          for (const u of r.unmatched) unknown.push(u);
         }
 
         saveItems(merged);
         renderTable(merged);
         refreshPctInputs(merged);
         prog.textContent = `完成：${ok}/${files.length} 张识别成功`
-          + (failed.length ? `；未读出：${failed.join('、')}` : '');
+          + (failed.length ? `；未读出：${failed.join('、')}` : '')
+          + (unknown.length ? `；认不准 ${unknown.length} 件（${unknown.slice(0, 4).join('、')}${unknown.length > 4 ? '…' : ''}）` : '');
       } catch (err) {
         prog.textContent = 'OCR 失败：' + err.message;
       }
