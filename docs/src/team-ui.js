@@ -365,24 +365,85 @@ async function importSettings(file) {
 }
 
 /** 导入 Bestdori 档案：拿到完整卡池 + 道具设置 */
+/**
+ * 吃进一段档案文本（文件导入和粘贴共用同一条路径）。
+ * @returns {number} 卡池张数
+ * @throws {Error} 解析失败时抛出可读的原因
+ */
+const PROFILE_STORE = 'bdh.profile.v1';
+
+function importProfileText(text) {
+  const raw = String(text || '').replace(/^\uFEFF/, '').trim();
+  if (!raw) throw new Error('内容是空的 —— 先把档案粘进来');
+  let json;
+  try {
+    json = JSON.parse(raw);
+  } catch (e) {
+    throw new Error('不是合法 JSON：' + e.message);
+  }
+  PROFILE = parseProfile(json, { maxCardId: 999999 });
+  applyProfileItems(PROFILE.items);
+  const pool0 = pool();
+  setPoolSource('profile', PROFILE.note);
+  $('tmPoolCount').textContent = pool0.length;
+  $('tmClearProfile').hidden = false;
+  renderImported(pool0);
+  persist();
+  // 原样存一份（1~2 KB）：刷新后不用再粘一次
+  try { localStorage.setItem(PROFILE_STORE, raw); } catch { /* 配额 */ }
+  return pool0.length;
+}
+
+/**
+ * 「粘贴文本…」：直接把官网导出的 JSON 粘进来，不经过文件。
+ * 面板是 index.html 里的 #profileLb（和选歌弹窗同一套样式），不用全屏浮层。
+ */
+function openProfilePaste() {
+  const box = $('profileLb');
+  if (!box) return;
+  box.hidden = false;
+  $('tmPasteErr').textContent = '';
+  const ta = $('tmPasteText');
+  ta.focus();
+  // 光标落到末尾，粘贴后能立刻看到内容
+  ta.setSelectionRange(ta.value.length, ta.value.length);
+
+  const doImport = () => {
+    $('tmPasteErr').textContent = '';
+    try {
+      const n = importProfileText(ta.value);
+      box.hidden = true;
+      $('tmHint').textContent = `已导入档案：卡池 ${n} 张`;
+      requestAnimationFrame(() => {
+        $('tmPoolBox').scrollIntoView({ block: 'center', behavior: 'smooth' });
+      });
+    } catch (e) {
+      $('tmPasteErr').textContent = e.message;
+    }
+  };
+
+  $('tmPasteDo').onclick = doImport;
+  $('pasteClose').onclick = () => { box.hidden = true; };
+  // 一边改一边清错误，别让上一次的红字一直挂着
+  ta.oninput = () => { $('tmPasteErr').textContent = ''; };
+  ta.onkeydown = (e) => {
+    if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') { e.preventDefault(); doImport(); }
+  };
+  $('tmPasteFile').onclick = () => { box.hidden = true; $('tmProfileFile').click(); };
+}
+
 function bindProfileImport() {
   const btn = $('tmImportProfile');
   if (!btn || btn.dataset.bound) return;
   btn.dataset.bound = '1';
   btn.onclick = () => $('tmProfileFile').click();
+  if ($('tmPasteProfile')) $('tmPasteProfile').onclick = openProfilePaste;
   $('tmProfileFile').onchange = async (e) => {
     const f = e.target.files?.[0];
     if (!f) return;
     try {
-      const json = JSON.parse(await f.text());
-      PROFILE = parseProfile(json, { maxCardId: 999999 });
-      applyProfileItems(PROFILE.items);
-      const pool0 = pool();
-      setPoolSource('profile', PROFILE.note);
-      $('tmPoolCount').textContent = pool0.length;
-      $('tmClearProfile').hidden = false;
-      renderImported(pool0);
-      persist();
+      const n = importProfileText(await f.text());
+      $('tmHint').textContent = `已导入档案：卡池 ${n} 张`;
     } catch (err) {
       $('tmHint').textContent = '导入失败：' + err.message;
     }
@@ -398,6 +459,7 @@ function bindProfileImport() {
 
   $('tmClearProfile').onclick = () => {
     PROFILE = null;
+    try { localStorage.removeItem(PROFILE_STORE); } catch { /* 忽略 */ }
     $('tmPoolSource').textContent = '清单里已识别的卡';
     $('tmPoolCount').textContent = pool().length;
     $('tmClearProfile').hidden = true;
@@ -569,9 +631,21 @@ export async function initTeamTab() {
       }
     }
   } catch { /* 坏数据忽略 */ }
+  // 上次粘贴/导入的档案：刷新后自动恢复，不用再粘一次
+  if (!PROFILE) {
+    try {
+      const saved = localStorage.getItem(PROFILE_STORE);
+      if (saved) {
+        PROFILE = parseProfile(JSON.parse(saved), { maxCardId: 999999 });
+        // 这里**不能**再 applyProfileItems：那会用档案里的等级覆盖用户手改过的
+        // 三组百分比（restore() 刚从设置里恢复的正是用户最后改的值）。
+      }
+    } catch { /* 坏数据就当没有 */ }
+  }
   if (PROFILE) {
     setPoolSource('profile', PROFILE.note);
     $('tmClearProfile').hidden = false;
+    renderImported(pool());
   } else {
     setPoolSource('list');
   }

@@ -891,7 +891,7 @@ a { color: var(--info); }
    以前直接把 .lightbox（全屏）当弹窗用，头部控件被全局 `select,input{width:100%}`
    撑成四行、217px 高，搜索框压在标题上、关闭按钮掉到左下角。
    现在套一层定宽面板，控件宽度全部在这里显式收回。 */
-#songLb { align-items: center; justify-content: center; padding: 16px; }
+#songLb, #profileLb { align-items: center; justify-content: center; padding: 16px; }
 .song-lb-panel {
   display: flex; flex-direction: column;
   width: min(760px, 100%);
@@ -974,3 +974,20 @@ a { color: var(--info); }
 /* 区域道具三列：杂志没有下拉，它的数字框会跟另外两个的 select 挤在同一行。
    用 margin-top:auto 把三个数字框都压到列底，视觉上才对得齐。 */
 #view-team .field-row .field > input[type="number"] { margin-top: auto; }
+
+/* 粘贴档案面板：和选歌弹窗同一套骨架，只是窄一点、输入框吃掉剩余高度 */
+.paste-panel { width: min(720px, 100%); max-height: min(84vh, 760px); }
+.paste-panel .lb-body { display: flex; flex-direction: column; }
+.paste-panel textarea { flex: 1 1 auto; min-height: 180px; }
+
+@media (max-width: 560px) {
+  /* 手机上粘贴面板也占满屏（和选歌一致），别被 84vh 的 max-height 卡住 */
+  #profileLb { padding: 0; }
+  .paste-panel { max-height: 100%; }
+}
+
+/* 粘贴面板：关闭按钮靠右（和选歌一致），输入框用主题色描边而不是浏览器默认焦点框 */
+#profileLb #pasteClose { margin-left: auto; }
+.paste-panel textarea:focus { outline: none; border-color: var(--accent); }
+/* 手机上没有 Ctrl，这条快捷键提示只在桌面显示 */
+@media (max-width: 560px) { .kbd-hint { display: none; } }

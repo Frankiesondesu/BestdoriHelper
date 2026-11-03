@@ -240,6 +240,7 @@
         </div>
         <div class="btn-row">
           <button class="small primary" id="tmImportProfile">导入完整档案…</button>
+          <button class="small" id="tmPasteProfile">粘贴文本…</button>
           <button class="small" id="tmGoItems">去「道具」页识别…</button>
           <button class="small" id="tmClearProfile" hidden>改回清单卡池</button>
           <input type="file" id="tmProfileFile" accept="application/json,.txt" hidden>
@@ -252,6 +253,34 @@
       </div>
       <div id="tmBody"><div class="empty">选好歌曲后点「计算最优队伍」</div></div>
     </section>
+
+    <!-- 粘贴档案：官网导出的 JSON 直接贴进来。
+         用和选歌弹窗同一套面板样式（居中、定宽），不套用全屏的大图浮层。 -->
+    <div class="lightbox" id="profileLb" hidden role="dialog" aria-modal="true">
+      <div class="song-lb-panel paste-panel">
+        <div class="lb-head">
+          <span class="song-lb-title">导入 Bestdori 档案</span>
+          <button class="small" id="pasteClose" title="关闭（Esc）">关闭</button>
+        </div>
+        <div class="lb-body">
+          <p class="footnote" style="margin:0 0 10px;line-height:1.7">
+            在 Bestdori 打开 <code>bestdori.com/profile/manager</code> → 点「导出资料」，
+            把整段 JSON 粘到下面。也可以粘本工具保存的 <code>my-config.json</code>。
+          </p>
+          <div class="field">
+            <label for="tmPasteText">档案 JSON</label>
+            <textarea id="tmPasteText" rows="10" spellcheck="false"
+              placeholder='{"name":"…","server":3,"data":{"cards":{"ids":"…"}}}'></textarea>
+          </div>
+          <div class="btn-row">
+            <button class="small primary" id="tmPasteDo">解析并导入</button>
+            <button class="small" id="tmPasteFile">改从文件选择…</button>
+            <span class="footnote kbd-hint">Ctrl / ⌘ + Enter 直接导入</span>
+          </div>
+          <p class="footnote" id="tmPasteErr" style="color:var(--err);min-height:18px;margin:0"></p>
+        </div>
+      </div>
+    </div>
 
     <!-- 选歌弹窗：用现有的 .lightbox 作用浮层（position:fixed; inset:0; z-index:60） -->
     <div class="lightbox" id="songLb" hidden role="dialog" aria-modal="true">
