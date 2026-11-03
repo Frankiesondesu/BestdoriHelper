@@ -11,6 +11,7 @@ import { parseChart, bestTeams, eventBonusFor, pickAreaItems } from './team.js';
 import { parseProfile } from './profile.js';
 import { recognizeImage, parseOcrLines } from './ocr.js';
 import { fetchChart } from './chart-fetch.js';
+import { log } from './log.js';
 
 let TEAM = null;
 let SONGS = null;
@@ -516,6 +517,7 @@ function importProfileText(text) {
   }
   PROFILE = parseProfile(json, { maxCardId: 999999 });
   applyProfileItems(PROFILE.items);
+  log(`导入档案：卡池 ${PROFILE.cards.length} 张 · ${PROFILE.note}`, 'ok');
   const pool0 = pool();
   setPoolSource('profile', PROFILE.note);
   $('tmPoolCount').textContent = pool0.length;
@@ -881,6 +883,7 @@ export async function runTeamCalc() {
   if (!sid) return;
 
   $('tmBody').innerHTML = '<div class="empty">计算中…</div>';
+  const t0 = performance.now();
   try {
     // 谱面按需取：本地缓存 -> 仓库文件 -> 在线代理（见 chart-fetch.js）
     $('tmBody').innerHTML = '<div class="empty">正在获取谱面…</div>';
@@ -888,6 +891,8 @@ export async function runTeamCalc() {
     const parsed = parseChart(chart);
     const evId = $('tmEvent').value;
     const ev = evId ? EVENTS[evId] : null;
+    log(`组队计算：${SONGS[sid]?.t || sid} · ${diff} · 卡池 ${p.length} 张 · `
+      + `活动 ${ev ? ev.n : '不计'} · 按${sortMode === 'score' ? '分数' : '点数'}`);
     const area = {
       band: Number($('tmBand').value) / 100,
       bandBand: $('tmBandSel').value || undefined,
@@ -947,6 +952,16 @@ export async function runTeamCalc() {
       if (dRaw) itemDetail = JSON.parse(dRaw);
     } catch { /* 忽略 */ }
 
+    if (itemLevels) {
+      const n = Object.keys(itemLevels).length;
+      const head = Object.entries(itemLevels).slice(0, 4)
+        .map(([k, v]) => `${k} Lv${v}`).join(' · ');
+      log(`道具：${n} 个槽位参与计算（${head}${n > 4 ? ' …' : ''}）`);
+    } else {
+      log('道具：没有数据，按 0 加成算 —— 去「道具」页识别或导入', 'warn');
+    }
+
+    let loggedStep = -1;   // 日志里每 25% 记一行，避免刷屏
     let results = await bestTeams(p, parsed, ctx, {
       topN: 30,
       sortBy: sortMode,                // ← 按点数 / 按分数
@@ -959,6 +974,11 @@ export async function runTeamCalc() {
         const t = $('tmProgTxt');
         if (t) t.textContent =
           `枚举组合 ${Math.round(f * 100)}%（卡池 ${p.length} 张，三围前列 + 全部档期卡参与枚举）`;
+        const step = Math.floor(f * 4);
+        if (step > loggedStep) {
+          loggedStep = step;
+          log(`枚举进度 ${Math.min(100, step * 25)}%（候选 ${p.length} 张）`);
+        }
       },
     });
 
@@ -978,6 +998,21 @@ export async function runTeamCalc() {
       });
       compare = other[0] || null;
     } catch { /* 对照算不出来不影响主结果 */ }
+
+    const best = results[0];
+    if (best) {
+      log(`完成：综合力 ${Math.round(best.power).toLocaleString()} · `
+        + `分数 ${Math.round(best.score).toLocaleString()} · `
+        + `加成 ${Math.round(best.bonusSum ?? 0)}% · `
+        + `点数 ${Math.round(best.points ?? 0).toLocaleString()} · `
+        + `${((performance.now() - t0) / 1000).toFixed(1)}s`, 'ok');
+      if (compare && compare !== best) {
+        log(`对照（按${sortMode === 'points' ? '分数' : '点数'}）：`
+          + `综合力 ${Math.round(compare.power).toLocaleString()} · `
+          + `分数 ${Math.round(compare.score).toLocaleString()} · `
+          + `点数 ${Math.round(compare.points ?? 0).toLocaleString()}`);
+      }
+    }
 
     render(results, {
       diff, level: ctx.songLevel, notes: parsed.notes.length,

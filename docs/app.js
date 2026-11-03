@@ -12,6 +12,7 @@
  * 指纹库（fingerprints.bin）和缩略图（thumbs/*.webp）都是构建时生成的静态资源。
  */
 
+import { log, clearLogUnread } from './src/log.js';
 import { computeFeatures, cropRgba } from './src/features.js';
 import { FingerprintIndex } from './src/index.js';
 import { detectBoxes, refineBox } from './src/detect.js';
@@ -41,14 +42,7 @@ const $ = (id) => document.getElementById(id);
 
 // ---- 工具 -------------------------------------------------------------
 
-function log(msg, cls = '') {
-  const el = $('log');
-  const t = new Date().toLocaleTimeString('zh-CN', { hour12: false });
-  const line = document.createElement('div');
-  line.innerHTML = `<span class="t">${t}</span> ${cls ? `<span class="${cls}">` : ''}${escapeHtml(msg)}${cls ? '</span>' : ''}`;
-  el.appendChild(line);
-  el.scrollTop = el.scrollHeight;
-}
+// 日志实现搬到 src/log.js，三个页面共用（组队页/道具页以前一行都不写）
 
 function escapeHtml(s) {
   return String(s).replace(/[&<>"']/g, (c) =>
@@ -1490,6 +1484,7 @@ function updateSyncHint() {
 function openLog(open) {
   $('logsheet').hidden = !open;
   $('logScrim').hidden = !open;
+  if (open) clearLogUnread();
   if (open) $('log').scrollTop = $('log').scrollHeight;
 }
 

@@ -1052,3 +1052,11 @@ tr.tm-row { cursor: pointer; }
 .seg button + button { border-left: 1px solid var(--border-2); }
 .seg button.on { background: var(--accent); color: #fff; }
 .seg button:hover:not(.on) { background: var(--panel-3); color: var(--text); }
+
+/* 日志未读提示：抽屉关着的时候，☰ 上亮一个点 */
+.icon-btn { position: relative; }
+.icon-btn.unread::after {
+  content: ''; position: absolute; top: 7px; right: 7px;
+  width: 7px; height: 7px; border-radius: 50%;
+  background: var(--accent); box-shadow: 0 0 0 2px var(--bg);
+}

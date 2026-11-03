@@ -7,6 +7,7 @@
 
 import { recognizeImage, parseOcrWords, readItemNames, readItemColumns, matchSlotLoose, prewarm, setItemNames } from './ocr.js';
 import { loadItemTemplates, prepareGray, matchIconAt } from './item-match.js';
+import { log } from './log.js';
 import { bandItemPct, everyoneItemPct, AREA_ITEM_CURVE } from './team.js';
 
 const ITEM_SLOTS_CN = {
@@ -202,11 +203,17 @@ export function initItemsTab() {
   prewarm((st) => {
     const prog = $('itProgress');
     if (!prog) return;
-    if (st === 'loading') prog.textContent = 'OCR 模型后台准备中…（首次约 26MB，之后走缓存）';
-    else if (st === 'ready') {
+    if (st === 'loading') {
+      prog.textContent = 'OCR 模型后台准备中…（首次约 26MB，之后走缓存）';
+      log('OCR 模型：加载中（首次约 26MB）');
+    } else if (st === 'ready') {
       prog.textContent = 'OCR 已就绪，选截图即可开始';
+      log('OCR 模型：已就绪', 'ok');
       setTimeout(() => { if (prog.textContent?.startsWith('OCR 已就绪')) prog.textContent = ''; }, 4000);
-    } else if (st === 'failed') prog.textContent = 'OCR 模型加载失败（网络问题？），可改用「导入 JSON…」';
+    } else if (st === 'failed') {
+      prog.textContent = 'OCR 模型加载失败（网络问题？），可改用「导入 JSON…」';
+      log('OCR 模型：加载失败 —— 可改用「导入 JSON…」', 'err');
+    }
   });
 
   const items = loadItems();
@@ -257,11 +264,16 @@ export function initItemsTab() {
           iconTotal += r.iconHits || 0;
           nameTotal += r.nameHits || 0;
           for (const u of r.unmatched) unknown.push(u);
+          log(`${files[i].name}：锚点 ${parsed.anchors?.length || 0} · `
+            + `名称 ${r.nameHits || 0} · 图标 ${r.iconHits || 0} · 列 ${r.colHits || 0} · `
+            + `槽位 ${n}`, n ? 'ok' : 'warn');
         }
 
         saveItems(merged);
         renderTable(merged);
         refreshPctInputs(merged);
+        log(`识别完成：${ok}/${files.length} 张 · 名称 ${nameTotal} / 图标 ${iconTotal}`
+          + (unknown.length ? ` · 认不准 ${unknown.length} 件` : ''), ok ? 'ok' : 'warn');
         prog.textContent = `完成：${ok}/${files.length} 张识别成功`
           + (nameTotal || iconTotal ? `（名称 ${nameTotal} 件 / 图标 ${iconTotal} 件）` : '')
           + (failed.length ? `；未读出：${failed.join('、')}` : '')
