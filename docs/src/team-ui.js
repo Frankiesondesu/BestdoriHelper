@@ -707,6 +707,29 @@ function applyProfileItems(items) {
   }
 }
 
+/**
+ * 仓库里自带的道具等级（`data/my-items.json`，就是之前用截图识别出来的那份）。
+ *
+ * 浏览器 localStorage 里没有「道具页」的结果时，用这份当默认值 ——
+ * 否则组队计算会当成「一件道具都没点」，综合力直接少 20%~30%，
+ * 推荐出来的队伍和实际能打出的分对不上。
+ */
+let DEFAULT_ITEMS = null;
+async function loadDefaultItems() {
+  if (DEFAULT_ITEMS !== null) return DEFAULT_ITEMS;
+  try {
+    const j = await fetch('data/my-items.json').then((r) => r.json());
+    const levels = {};
+    for (const [k, v] of Object.entries(j.items || {})) {
+      levels[k] = Array.isArray(v) ? Number(v[1]) || 0 : Number(v) || 0;
+    }
+    DEFAULT_ITEMS = { levels, detail: j.detail || null };
+  } catch {
+    DEFAULT_ITEMS = { levels: {}, detail: null };
+  }
+  return DEFAULT_ITEMS;
+}
+
 export async function initTeamTab() {
   try {
     await ensureData();
@@ -726,16 +749,20 @@ export async function initTeamTab() {
   bindPersistence();
   bindProfileImport();
 
-  // 道具页存的结果（bdh.items.v1）：有的话回填明细和百分比
+  // 道具：优先用「道具」页存的结果，没有就用仓库自带的 my-items.json
   try {
     const rawItems = localStorage.getItem('bdh.items.v1');
-    if (rawItems) {
-      const items = JSON.parse(rawItems);
-      if (items && Object.keys(items).length) {
-        applyProfileItems(Object.fromEntries(
-          Object.entries(items).map(([k, v]) => [k, [0, v]])));
+    let items = null;
+    if (rawItems) items = JSON.parse(rawItems);
+    if (!items || !Object.keys(items).length) {
+      const d = await loadDefaultItems();
+      items = Object.fromEntries(Object.entries(d.levels).map(([k, v]) => [k, [0, v]]));
+      if (Object.keys(items).length && $('tmItemInfo')) {
+        $('tmItemInfo').textContent =
+          `已载入上次识别的道具（${Object.keys(items).length} 个槽位）· 可在「道具」页重新识别`;
       }
     }
+    if (items && Object.keys(items).length) applyProfileItems(items);
   } catch { /* 坏数据忽略 */ }
   // 上次粘贴/导入的档案：刷新后自动恢复，不用再粘一次
   if (!PROFILE) {
@@ -844,7 +871,7 @@ export async function runTeamCalc() {
         </div>
         <div class="footnote" id="tmProgTxt">候选 ${p.length} 张，正在枚举组合…</div>
       </div>`;
-    // 实际道具等级：来自「道具」页（bdh.items.v1），没有就退回手填的三组百分比
+    // 实际道具等级：来自「道具」页（bdh.items.v1）；没有就用仓库自带的 my-items.json
     let itemLevels = null;
     let itemDetail = null;
     try {
@@ -852,6 +879,10 @@ export async function runTeamCalc() {
       if (raw) {
         const it = JSON.parse(raw);
         if (it && Object.keys(it).length) itemLevels = it;
+      }
+      if (!itemLevels) {
+        const d = await loadDefaultItems();
+        if (Object.keys(d.levels).length) { itemLevels = d.levels; itemDetail = d.detail; }
       }
       // 道具明细（中文名）——用来判断属性道具管哪个属性、杂志加哪一围
       const dRaw = localStorage.getItem('bdh.itemsDetail.v1');

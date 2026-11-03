@@ -1526,7 +1526,10 @@ export async function bestTeams(pool, parsed, ctx, opt = {}) {
     // 0.9 是判定/combo 的保守折扣 —— 只要单调就行，不用和真实分数等值
     const base = channel === 'param' ? weighted : panel;
     const approx = base * levelBonus * 3 * SCORE_SCALE * (1 + (up / 5) * 0.35) * 0.9;
-    if (!ev) return approx;
+    // 按分数排的时候粗排也必须按分数 —— 否则「加成 0 但综合力高」的队
+    // 进不了精确计算的短名单，界面上那句「最高分其实是 X」就是假的
+    // （实测：真最高分 2,134,688，按点数粗排只看到 1,885,282）。
+    if (!ev || sortBy === 'score') return approx;
     // 有活动时直接用点数排序：光按分数排会把「分数略高但加成低很多」的队排前面
     // （正是要避免的误区）。加成要传**合计**，和结算口径一致。
     return eventPoints(approx, ev, { bonusSum: bonus, ...flameOpt });
