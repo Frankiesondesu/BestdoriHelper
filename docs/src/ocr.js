@@ -258,6 +258,31 @@ function charNames() {
   return CHAR_NAMES;
 }
 
+/** 官方道具名表（74 条，items.json），由 items-ui 注入 */
+let ITEM_NAMES = null;
+export function setItemNames(list) { ITEM_NAMES = list; }
+
+/**
+ * 官方名单模糊匹配。
+ *
+ * OCR 出来的名字常有 1 个字错（「椿子树」vs「椰子树」、「喷累」vs「喷泉」、
+ * 「内酱意大利面」vs「肉酱意大利面」），关键词表一条都命中不了。
+ * 拿 74 条官方名字算相似度，1 个字之差也能对上。
+ */
+function matchOfficial(name) {
+  if (!ITEM_NAMES?.length || !name) return null;
+  const n = name.replace(/[^\u4e00-\u9fffA-Za-z]/g, '');
+  if (n.length < 2) return null;
+  const scored = ITEM_NAMES
+    .map((it) => ({ it, s: sim(n, it.n.replace(/\s/g, '')) }))
+    .sort((a, b) => b.s - a.s);
+  const best = scored[0];
+  const second = scored[1];
+  if (!best || best.s < 0.6) return null;
+  if (second && best.s - second.s < 0.08) return null;   // 两个都像 → 不猜
+  return best.it.s;
+}
+
 /** 保守版槽位匹配：认不准返回 null */
 export function matchSlotLoose(name) {
   const n = (name || '').replace(/[^\u4e00-\u9fffA-Za-z]/g, '');
@@ -296,7 +321,7 @@ export function matchSlotLoose(name) {
     for (const k of list) if (n.includes(k) || sim(n, k) >= 0.7) return slot;
     return null;
   };
-  return pick(plaza, 'Plaza') || pick(menu, 'Menu');
+  return pick(plaza, 'Plaza') || pick(menu, 'Menu') || matchOfficial(n);
 }
 
 /** 兼容旧接口：没有坐标时退回按文本行猜 */
@@ -305,7 +330,100 @@ export function parseOcrText(text) {
     .map((t, i) => ({ text: t.trim(), x: 0, y: i * 40 })));
 }
 
-/** 把 File/Blob/dataURL 画到 2 倍画布上（Tesseract 对小字更友好） */
+/**
+ * 逐张卡读道具名 —— 这是识别率的关键。
+ *
+ * 整图 OCR 会把四列名字糊成一段（「Roselia的宣传单」只剩「的宣传单」），
+ * 但**按卡片裁出来单独识别**就非常准：实测 4 倍放大 + 单行模式，
+ * 6 张里 5 张正确（「Roselia 的 宣 传 单」「CiRCLE 的 海 报」…）。
+ *
+ * 名称条位置是固定的：等级文字下方 22~92px、卡片宽约 350px（2640 宽截图）。
+ *
+ * @param {HTMLCanvasElement} canvas 与 words 同一坐标系的画布
+ * @param {{x:number,y:number,level:number}[]} anchors
+ * @returns {Promise<{x:number,y:number,level:number,name:string}[]>}
+ */
+export async function readItemNames(canvas, anchors, onProgress) {
+  if (!anchors?.length) return [];
+  const worker = await getWorker(onProgress);
+  const k = canvas.width / 2640;      // 相对 2640 宽截图的缩放
+  const out = [];
+  for (let i = 0; i < anchors.length; i++) {
+    const a = anchors[i];
+    const name = await readOneName(canvas, worker, a, k);
+    out.push({ ...a, name, lines: name ? [name] : [] });
+    if (onProgress) onProgress((i + 1) / anchors.length);
+  }
+  return out;
+}
+
+/**
+ * 读一张卡的道具名。
+ *
+ * 卡片有两种版式（紧凑卡名字在等级下方 ~30px，大卡在 ~70px），
+ * 所以不猜偏移：先在卡片区域里**按行找那条深色名称条**（白字深底，
+ * 一整行 55% 以上是暗像素），再把这条单独裁出来 4 倍放大识别。
+ */
+async function readOneName(canvas, worker, anchor, k) {
+  const rx = Math.max(0, Math.round((anchor.x / k) - 15));
+  const ry = Math.max(0, Math.round((anchor.y / k) - 40));
+  const rw = Math.round(350);
+  const rh = Math.round(230);
+  if (rx + rw > canvas.width / k || ry + rh > canvas.height / k) return '';
+
+  // 1x 小图，只用来找名称条的行范围
+  const tmp = document.createElement('canvas');
+  tmp.width = rw; tmp.height = rh;
+  const g = tmp.getContext('2d', { willReadFrequently: true });
+  g.drawImage(canvas, rx * k, ry * k, rw * k, rh * k, 0, 0, rw, rh);
+  const d = g.getImageData(0, 0, rw, rh).data;
+  const dark = new Uint8Array(rh);
+  const wide = new Uint16Array(rh);   // 该行暗像素的横向跨度
+  for (let y = 0; y < rh; y++) {
+    let n = 0; let x0 = -1; let x1 = -1;
+    for (let x = 0; x < rw; x++) {
+      const o = (y * rw + x) * 4;
+      if (0.299 * d[o] + 0.587 * d[o + 1] + 0.114 * d[o + 2] < 120) {
+        n++; if (x0 < 0) x0 = x; x1 = x;
+      }
+    }
+    if (n / rw > 0.5) { dark[y] = 1; wide[y] = x1 - x0; }
+  }
+  // 名称条横跨整张卡（≥250px）；「等级」那个小药丸只有 ~200px，靠宽度区分
+  let band = null;
+  for (let y = 0; y < rh; y++) {
+    if (!dark[y]) continue;
+    let y2 = y; let wMax = 0;
+    while (y2 < rh && dark[y2]) { wMax = Math.max(wMax, wide[y2]); y2++; }
+    const h = y2 - y;
+    if (h >= 22 && h <= 80 && wMax >= 250) { band = [y, y2]; break; }
+    y = y2;
+  }
+  if (!band) return '';
+
+  // 从原画布按 4 倍裁出来
+  const c = document.createElement('canvas');
+  const S = 2;
+  c.width = rw * S;
+  c.height = (band[1] - band[0] + 8) * S;
+  const cg = c.getContext('2d');
+  cg.imageSmoothingQuality = 'high';
+  cg.drawImage(canvas,
+    (rx) * k, (ry + band[0] - 4) * k, rw * k, (band[1] - band[0] + 8) * k,
+    0, 0, c.width, c.height);
+
+  try {
+    const { data } = await worker.recognize(c, { tessedit_pageseg_mode: '7' });
+    return (data.text || '')
+      .replace(/[|｜…·.,，、:：;；'"“”]/g, ' ')
+      .replace(/\s+/g, '')
+      .trim();
+  } catch {
+    return '';
+  }
+}
+
+/** 把 File/Blob/dataURL 画到 2 倍画布上（Tesseract 对小字更友好） *//** 把 File/Blob/dataURL 画到 2 倍画布上（Tesseract 对小字更友好） */
 async function toCanvas2x(image) {
   let src = image;
   if (typeof image === 'string') {

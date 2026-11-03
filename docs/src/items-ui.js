@@ -5,7 +5,7 @@
  * 结果存 localStorage（`bdh.items.v1`），组队页初始化时自动读取。
  */
 
-import { recognizeImage, parseOcrWords, prewarm } from './ocr.js';
+import { recognizeImage, parseOcrWords, readItemNames, prewarm, setItemNames } from './ocr.js';
 import { loadItemTemplates, prepareGray, matchIconAt } from './item-match.js';
 import { bandItemPct, everyoneItemPct, AREA_ITEM_CURVE } from './team.js';
 
@@ -70,31 +70,56 @@ function toPct(slot, lv) {
 }
 
 /**
- * 图标匹配优先，名字匹配兜底。
+ * 三路证据合并，优先级：逐卡名称 > 图标 > 整图名字。
  *
- * 名字 OCR 经常把乐队名丢掉（「Roselia的宣传单」→「的宣传单」），
- * 而图标是固定素材，认出来就是确定的那一件。
+ * - 逐卡名称：把每张卡的名字条裁出来单独 OCR（4 倍放大），准确率最高
+ * - 图标：固定素材，能区分「同名不同件」，但几何一变就失效
+ * - 整图名字：四列会糊在一起，只作兜底
  */
-async function mergeIconMatches(parsed, canvas) {
+async function mergeResults(parsed, canvas, onStep) {
   const out = {
     items: { ...parsed.items },
     detail: [...parsed.detail],
     unmatched: [...parsed.unmatched],
     iconHits: 0,
+    nameHits: 0,
   };
   if (!parsed.anchors?.length || !canvas) return out;
-  let tpl; let G;
-  try {
-    tpl = await loadItemTemplates();
-    G = prepareGray(canvas);
-  } catch { return out; }
-  for (const a of parsed.anchors) {
-    const hit = matchIconAt(G, a, tpl);
-    if (!hit) continue;
-    out.iconHits += 1;
-    out.items[hit.slot] = Math.max(out.items[hit.slot] || 0, a.level);
-    out.detail.push({ slot: hit.slot, level: a.level, name: hit.name, by: 'icon' });
+
+  // 1. 逐卡名称：裁「名称条」再单独 OCR。
+  //    实测在部分版式上会退化成乱码（卡片版式有两种，深色条位置不一致），
+  //    所以只在**整图名字没认出来**的时候补一刀，避免覆盖更可靠的结果。
+  if (!Object.keys(out.items).length) {
+    try {
+      const names = await readItemNames(canvas, parsed.anchors, (p) => onStep && onStep('name', p));
+      for (const n of names) {
+        let slot = null;
+        let used = '';
+        for (const line of (n.lines?.length ? n.lines : [n.name])) {
+          const s2 = matchSlotLoose(line);
+          if (s2) { slot = s2; used = line; break; }
+        }
+        if (!slot) continue;
+        out.nameHits += 1;
+        out.items[slot] = Math.max(out.items[slot] || 0, n.level);
+        out.detail.push({ slot, level: n.level, name: used, by: 'name' });
+      }
+    } catch { /* 名称这一路失败不影响图标 */ }
   }
+
+  // 2. 图标
+  try {
+    const tpl = await loadItemTemplates();
+    const G = prepareGray(canvas);
+    for (const a of parsed.anchors) {
+      const hit = matchIconAt(G, a, tpl);
+      if (!hit) continue;
+      out.iconHits += 1;
+      out.items[hit.slot] = Math.max(out.items[hit.slot] || 0, a.level);
+      out.detail.push({ slot: hit.slot, level: a.level, name: hit.name, by: 'icon' });
+    }
+  } catch { /* 图标不可用就只靠名称 */ }
+
   return out;
 }
 
@@ -155,8 +180,11 @@ function savePct() {
 
 export function initItemsTab() {
   // 进页就在后台把 OCR 模型备好，用户点「识别」时不用等下载
-  // 图标模板只有 74 张小图，进页就顺手拉下来（约 700KB）
-  loadItemTemplates().catch(() => {});
+  // 图标模板只有 74 张小图，进页就顺手拉下来（约 700KB）；
+  // 同一份清单也喂给名字匹配（官方名模糊匹配比关键词表稳）
+  loadItemTemplates()
+    .then((list) => setItemNames(list.map((t) => ({ n: t.name, s: t.slot }))))
+    .catch(() => {});
   prewarm((st) => {
     const prog = $('itProgress');
     if (!prog) return;
@@ -185,6 +213,7 @@ export function initItemsTab() {
       const failed = [];
       const unknown = [];
       let iconTotal = 0;
+      let nameTotal = 0;
 
       try {
         for (let i = 0; i < files.length; i++) {
@@ -199,7 +228,9 @@ export function initItemsTab() {
             continue;
           }
           const parsed = parseOcrWords(res.words);
-          const r = await mergeIconMatches(parsed, res.canvas);
+          const r = await mergeResults(parsed, res.canvas, (kind, p) => {
+            if (kind === 'name') prog.textContent = `识别中 ${i + 1}/${files.length}… 读道具名 ${Math.round(p * 100)}%`;
+          });
           const n = Object.keys(r.items).length;
           if (n) {
             ok += 1;
@@ -210,6 +241,7 @@ export function initItemsTab() {
             failed.push(files[i].name);
           }
           iconTotal += r.iconHits || 0;
+          nameTotal += r.nameHits || 0;
           for (const u of r.unmatched) unknown.push(u);
         }
 
@@ -217,7 +249,7 @@ export function initItemsTab() {
         renderTable(merged);
         refreshPctInputs(merged);
         prog.textContent = `完成：${ok}/${files.length} 张识别成功`
-          + (iconTotal ? `（图标匹配 ${iconTotal} 件）` : '')
+          + (nameTotal || iconTotal ? `（名称 ${nameTotal} 件 / 图标 ${iconTotal} 件）` : '')
           + (failed.length ? `；未读出：${failed.join('、')}` : '')
           + (unknown.length ? `；认不准 ${unknown.length} 件（${unknown.slice(0, 4).join('、')}${unknown.length > 4 ? '…' : ''}）` : '');
       } catch (err) {
