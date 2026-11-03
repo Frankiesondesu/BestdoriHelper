@@ -6,6 +6,7 @@
  */
 
 import { recognizeImage, parseOcrWords, prewarm } from './ocr.js';
+import { loadItemTemplates, prepareGray, matchIconAt } from './item-match.js';
 import { bandItemPct, everyoneItemPct, AREA_ITEM_CURVE } from './team.js';
 
 const ITEM_SLOTS_CN = {
@@ -68,6 +69,35 @@ function toPct(slot, lv) {
   return Math.round(pct * 10) / 10;
 }
 
+/**
+ * 图标匹配优先，名字匹配兜底。
+ *
+ * 名字 OCR 经常把乐队名丢掉（「Roselia的宣传单」→「的宣传单」），
+ * 而图标是固定素材，认出来就是确定的那一件。
+ */
+async function mergeIconMatches(parsed, canvas) {
+  const out = {
+    items: { ...parsed.items },
+    detail: [...parsed.detail],
+    unmatched: [...parsed.unmatched],
+    iconHits: 0,
+  };
+  if (!parsed.anchors?.length || !canvas) return out;
+  let tpl; let G;
+  try {
+    tpl = await loadItemTemplates();
+    G = prepareGray(canvas);
+  } catch { return out; }
+  for (const a of parsed.anchors) {
+    const hit = matchIconAt(G, a, tpl);
+    if (!hit) continue;
+    out.iconHits += 1;
+    out.items[hit.slot] = Math.max(out.items[hit.slot] || 0, a.level);
+    out.detail.push({ slot: hit.slot, level: a.level, name: hit.name, by: 'icon' });
+  }
+  return out;
+}
+
 function renderTable(items) {
   const box = $('itTable');
   const entries = Object.entries(items || {});
@@ -125,6 +155,8 @@ function savePct() {
 
 export function initItemsTab() {
   // 进页就在后台把 OCR 模型备好，用户点「识别」时不用等下载
+  // 图标模板只有 74 张小图，进页就顺手拉下来（约 700KB）
+  loadItemTemplates().catch(() => {});
   prewarm((st) => {
     const prog = $('itProgress');
     if (!prog) return;
@@ -152,6 +184,7 @@ export function initItemsTab() {
       let ok = 0;
       const failed = [];
       const unknown = [];
+      let iconTotal = 0;
 
       try {
         for (let i = 0; i < files.length; i++) {
@@ -165,7 +198,8 @@ export function initItemsTab() {
             failed.push(`${files[i].name}（${err.message}）`);
             continue;
           }
-          const r = parseOcrWords(res.words);
+          const parsed = parseOcrWords(res.words);
+          const r = await mergeIconMatches(parsed, res.canvas);
           const n = Object.keys(r.items).length;
           if (n) {
             ok += 1;
@@ -175,6 +209,7 @@ export function initItemsTab() {
           } else {
             failed.push(files[i].name);
           }
+          iconTotal += r.iconHits || 0;
           for (const u of r.unmatched) unknown.push(u);
         }
 
@@ -182,6 +217,7 @@ export function initItemsTab() {
         renderTable(merged);
         refreshPctInputs(merged);
         prog.textContent = `完成：${ok}/${files.length} 张识别成功`
+          + (iconTotal ? `（图标匹配 ${iconTotal} 件）` : '')
           + (failed.length ? `；未读出：${failed.join('、')}` : '')
           + (unknown.length ? `；认不准 ${unknown.length} 件（${unknown.slice(0, 4).join('、')}${unknown.length > 4 ? '…' : ''}）` : '');
       } catch (err) {

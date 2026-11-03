@@ -159,7 +159,8 @@ export function parseOcrWords(words) {
   const items = {};
   const detail = [];
   const unmatched = [];
-  if (!words?.length) return { items, detail, unmatched };
+  const anchors = [];      // 每个「等级N」的位置，图标匹配用
+  if (!words?.length) return { items, detail, unmatched, anchors };
 
   // 1. 按 y 聚成行
   const sorted = [...words].sort((a, b) => a.y - b.y);
@@ -192,6 +193,7 @@ export function parseOcrWords(words) {
       }
     }
     if (!levels.length) return;
+    for (const L of levels) anchors.push({ x: L.x, y: row[0].y, level: L.level });
 
     // 3. 名字：不按「行」取，直接按几何窗口取 —— 同一行里各字的 y 会抖 2~3px，
     //    按行聚合容易把最后一个字切到下一行（实测「米歇尔的铜」少了「像」）。
@@ -218,7 +220,7 @@ export function parseOcrWords(words) {
     }
   });
 
-  return { items, detail, unmatched };
+  return { items, detail, unmatched, anchors };
 }
 
 /** 最长公共子序列长度占比，用来容忍 OCR 的错字（"椿子树" vs "椰子树"） */
@@ -397,6 +399,7 @@ export async function recognizeImage(image, onProgress) {
       lines: (data.lines || []).map(toBox).filter((l) => l.text),
       words: (data.words || []).map(toBox).filter((w) => w.text),
       scale: 2,
+      canvas,          // 供图标模板匹配用（与 words 同一套坐标）
     };
   } finally {
     // **不要 terminate**：worker 要复用（语言包重载很贵）。
