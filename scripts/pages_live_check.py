@@ -55,12 +55,20 @@ def main() -> int:
         print(f"清单行数：{n}")
         print("导出按钮可用：", not page.locator("#btnProfile").is_disabled())
 
-        # 顺带确认档案导出能生成合法 JSON
+        # 顺带确认档案导出能生成合法 JSON。
+        # 导出的结构是 Bestdori 官网认的档案：{"server":3,"data":{"cards":{...},"items":{...}}}
+        # —— 卡牌在 data.data.cards 里，不在顶层（早期脚本按顶层取，一改结构就 KeyError）。
         page.click("#btnProfile")
         page.wait_for_timeout(1000)
         raw = page.input_value("#profileText")
         data = json.loads(raw)
-        print(f"档案导出：{len(data['cards'])} 张卡，server={data['server']}")
+        root = data.get("data") or data
+        cards = root.get("cards") or {}
+        items = root.get("items") or {}
+        print(f"档案导出：cards={'有' if cards else '缺'} · items={len(items)} 类 · "
+              f"server={data.get('server')}")
+        if not cards:
+            raise SystemExit("档案导出里没有 cards —— 结构可能又变了")
 
         print("\n控制台错误：", errs or "无 ✓")
         browser.close()
