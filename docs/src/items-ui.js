@@ -5,7 +5,7 @@
  * 结果存 localStorage（`bdh.items.v1`），组队页初始化时自动读取。
  */
 
-import { recognizeImage, parseOcrWords, readItemNames, prewarm, setItemNames } from './ocr.js';
+import { recognizeImage, parseOcrWords, readItemNames, readItemColumns, matchSlotLoose, prewarm, setItemNames } from './ocr.js';
 import { loadItemTemplates, prepareGray, matchIconAt } from './item-match.js';
 import { bandItemPct, everyoneItemPct, AREA_ITEM_CURVE } from './team.js';
 
@@ -83,6 +83,7 @@ async function mergeResults(parsed, canvas, onStep) {
     unmatched: [...parsed.unmatched],
     iconHits: 0,
     nameHits: 0,
+    colHits: 0,
   };
   if (!parsed.anchors?.length || !canvas) return out;
 
@@ -107,6 +108,18 @@ async function mergeResults(parsed, canvas, onStep) {
     } catch { /* 名称这一路失败不影响图标 */ }
   }
 
+  // 3. 按列 OCR 兜底：只补前面没认出来的槽位（海报页这一路最有效）
+  try {
+    const cols = await readItemColumns(canvas, (p) => onStep && onStep('col', p));
+    for (const c of cols) {
+      const slot = matchSlotLoose(c.name);
+      if (!slot || out.items[slot] != null) continue;
+      out.colHits += 1;
+      out.items[slot] = c.level;
+      out.detail.push({ slot, level: c.level, name: c.name, by: 'col' });
+    }
+  } catch { /* 列 OCR 失败不影响已有结果 */ }
+
   // 2. 图标
   try {
     const tpl = await loadItemTemplates();
@@ -114,8 +127,9 @@ async function mergeResults(parsed, canvas, onStep) {
     for (const a of parsed.anchors) {
       const hit = matchIconAt(G, a, tpl);
       if (!hit) continue;
+      if (out.items[hit.slot] != null) continue;   // 文字已经认出来了，图标只补空缺
       out.iconHits += 1;
-      out.items[hit.slot] = Math.max(out.items[hit.slot] || 0, a.level);
+      out.items[hit.slot] = a.level;
       out.detail.push({ slot: hit.slot, level: a.level, name: hit.name, by: 'icon' });
     }
   } catch { /* 图标不可用就只靠名称 */ }

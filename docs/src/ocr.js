@@ -331,6 +331,56 @@ export function parseOcrText(text) {
 }
 
 /**
+ * 按列切条 OCR —— 第三路证据。
+ *
+ * 商店固定 4 列（2640 宽时列起点约 556/933/1310/1686），把每一列单独裁出来
+ * 识别，四列的字就不会糊成一行。海报页（88/89）靠这一路能读出
+ * 「Roselia 的 宣 传 单」「CiRCLE 的 海 报」这种整名。
+ *
+ * @returns {Promise<{level:number,name:string}[]>}
+ */
+export async function readItemColumns(canvas, onProgress) {
+  const worker = await getWorker(onProgress);
+  const W = canvas.width;
+  const H = canvas.height;
+  const k = W / 2640;
+  const xs = [0.2106, 0.3534, 0.4962, 0.6390].map((r) => Math.round(W * r));
+  const w0 = Math.round(380 * k);
+  const y0 = Math.round(240 * k);
+  const h0 = Math.round(860 * k);
+  const out = [];
+  for (let i = 0; i < xs.length; i++) {
+    const c = document.createElement('canvas');
+    const S = 3;
+    c.width = w0 * S; c.height = h0 * S;
+    const g = c.getContext('2d');
+    g.imageSmoothingQuality = 'high';
+    g.drawImage(canvas, xs[i], y0, w0, h0, 0, 0, c.width, c.height);
+    let text = '';
+    try {
+      const { data } = await worker.recognize(c, { tessedit_pageseg_mode: '6' });
+      text = data.text || '';
+    } catch { /* 单列失败不影响其它 */ }
+    // 逐行配对：等级行之后的第一条「像名字」的行
+    const lines = text.split(/\n+/).map((x) => x.replace(/\s+/g, '').trim()).filter(Boolean);
+    for (let j = 0; j < lines.length; j++) {
+      const m = lines[j].match(/等级([1-8])/);
+      if (!m) continue;
+      const level = Number(m[1]);
+      for (let q = j + 1; q < Math.min(j + 4, lines.length); q++) {
+        const t = lines[q];
+        if (/等级|提升|售完|购买|剩余|完成|^\d|^[¥￥@®]/.test(t)) continue;
+        if (t.length < 2) continue;
+        out.push({ level, name: t });
+        break;
+      }
+    }
+    if (onProgress) onProgress((i + 1) / xs.length);
+  }
+  return out;
+}
+
+/** 把 File/Blob/dataURL 画到 2 倍画布上（Tesseract 对小字更友好） *//**
  * 逐张卡读道具名 —— 这是识别率的关键。
  *
  * 整图 OCR 会把四列名字糊成一段（「Roselia的宣传单」只剩「的宣传单」），
