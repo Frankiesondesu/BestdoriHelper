@@ -29,7 +29,8 @@
     <!-- ===== 识别 ===== -->
     <section class="view" id="view-import" data-view="import">
       <div class="card">
-        <div class="dropzone" id="dropzone">
+        <div class="dropzone" id="dropzone" tabindex="0" role="button"
+           aria-label="选择截图文件">
           <svg class="dz-icon" viewBox="0 0 24 24" aria-hidden="true">
             <path d="M12 16V4m0 0L8 8m4-4 4 4"/>
             <path d="M4 15v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3"/>
@@ -181,7 +182,9 @@
         </div>
         <div class="field-row">
           <div class="field"><label for="tmEvent">活动</label>
-            <select id="tmEvent"><option value="">不计活动加成</option></select></div>
+            <select id="tmEvent"><option value="">不计活动加成</option></select>
+            <!-- 窄屏下 select 只放得下「进行中 ·」，活动名被截掉 —— 这行补全 -->
+            <div class="footnote ev-name" id="tmEventName"></div></div>
           <div class="field"><label for="tmSkillLv">技能等级</label>
             <select id="tmSkillLv">
               <option value="1">1</option><option value="2">2</option>
@@ -196,7 +199,7 @@
         </div>
 
         <div class="card-label" style="margin-top:6px">区域道具
-          <span class="footnote">按游戏的三组分开填，留 0 = 没点</span></div>
+          <span class="footnote">有「道具」页的等级时由系统逐队自动选，下面手填的值不参与计算</span></div>
         <div class="footnote" id="tmItemInfo" style="margin:-2px 0 6px"></div>
         <div class="field-row">
           <div class="field"><label for="tmBandSel">乐队道具</label>
@@ -252,25 +255,28 @@
 
     <!-- 选歌弹窗：用现有的 .lightbox 作用浮层（position:fixed; inset:0; z-index:60） -->
     <div class="lightbox" id="songLb" hidden role="dialog" aria-modal="true">
-      <div class="lb-head" style="flex-wrap:wrap;gap:8px">
-        <span style="font-weight:700;flex:none">选择歌曲</span>
-        <input type="search" id="songSearch" placeholder="搜曲名…"
-               style="flex:1 1 160px;min-width:120px">
-        <select id="songBand" style="flex:none">
-          <option value="">全部乐队</option>
-        </select>
-        <select id="songDiff" style="flex:none">
-          <option value="expert" selected>Expert</option>
-          <option value="hard">Hard</option>
-          <option value="normal">Normal</option>
-          <option value="easy">Easy</option>
-          <option value="special">Special</option>
-        </select>
-        <button class="small" id="songLbClose" style="flex:none">关闭</button>
-      </div>
-      <div class="lb-body" style="overflow:auto;padding:10px 12px calc(var(--sab) + 12px)">
-        <div id="songList" style="display:flex;flex-direction:column;gap:6px;max-width:720px;margin:0 auto"></div>
-        <div id="songMore" class="footnote" style="text-align:center;margin-top:10px"></div>
+      <!-- 居中面板：全屏铺开时头部控件会被全局 width:100% 撑成四行（实测 217px 高），
+           所以这里套一层定宽容器，样式全部走 CSS，不再用行内 flex。 -->
+      <div class="song-lb-panel">
+        <div class="lb-head">
+          <span class="song-lb-title">选择歌曲</span>
+          <input type="search" id="songSearch" placeholder="搜曲名…">
+          <select id="songBand">
+            <option value="">全部乐队</option>
+          </select>
+          <select id="songDiff">
+            <option value="expert" selected>Expert</option>
+            <option value="hard">Hard</option>
+            <option value="normal">Normal</option>
+            <option value="easy">Easy</option>
+            <option value="special">Special</option>
+          </select>
+          <button class="small" id="songLbClose" title="关闭（Esc）">关闭</button>
+        </div>
+        <div class="lb-body">
+          <div id="songList"></div>
+          <div id="songMore" class="footnote"></div>
+        </div>
       </div>
     </div>
 
@@ -302,8 +308,8 @@
       <div class="card">
         <div class="card-label">换算成百分比</div>
         <p class="footnote" style="margin:6px 0 10px">
-          档案与截图里存的是**道具等级（1~8）**，不是加成百分比。
-          这里按「每级 1.5%」估算，可手动改——组队页会直接用这三个值。
+          档案与截图里存的是<strong>道具等级（1~8）</strong>，不是加成百分比。
+          这里按道具品类各自的曲线换算（乐器 / 海报 / 属性 / 杂志各不相同），换算完可以手改。
         </p>
         <div class="field-row">
           <div class="field"><label for="itBandPct">乐队道具</label>
@@ -361,11 +367,24 @@
         </div>
       </div>
 
+      <!-- 网页版：不给死路。CORS 拦住了直连，但官网自带导入入口，
+           所以这一页直接给「导出 → 打开官网 → 粘贴」的三步，按钮就在页面上。 -->
       <div class="notice" id="syncUnavailable" hidden>
-        <strong>网页版用不了同步功能</strong>
-        <p>Bestdori 的接口不返回 CORS 头，浏览器会拦掉所有请求（实测连公开的卡牌接口都被拦）。
-           同步只在安卓 App 里可用 —— 那里走原生 HTTP，没有同源策略。</p>
-        <p>网页版请用「清单」页的导出功能，把清单拿到桌面版导入。</p>
+        <strong>网页版：导出档案，到 Bestdori 官网粘贴导入</strong>
+        <p>浏览器拦掉了 Bestdori 的接口（它不返回 CORS 头，实测连公开的卡牌接口都被拦），
+           所以网页版没法直接写你的卡册。但官网自己有导入入口 —— 三步完成，
+           <strong>账号密码不经过任何第三方</strong>。</p>
+        <div class="steps">
+          <div><i>1</i><span><b>导出档案</b>：把清单压成官网认得的格式</span></div>
+          <div><i>2</i><span><b>打开</b> Bestdori 的「用户档案 → 导入资料」页</span></div>
+          <div><i>3</i><span><b>粘贴</b> 进去，点 Import 确认</span></div>
+        </div>
+        <div class="btn-row">
+          <button class="small primary" id="syncExport">① 导出档案</button>
+          <button class="small" id="syncOpenBd">② 打开 Bestdori 档案页 ↗</button>
+        </div>
+        <p class="footnote" id="syncExportHint"></p>
+        <p class="footnote">想一键直连（不手动粘贴）？装安卓 App，那里走原生 HTTP，可以自动写入。</p>
       </div>
     </section>
 

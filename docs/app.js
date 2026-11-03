@@ -31,6 +31,7 @@ const S = {
   selected: null,       // 当前选中的格 {shot, cell}
   busy: false,
   orb: null,            // 几何校验器（懒加载）
+  restored: 0,          // 刷新后从 localStorage 恢复的清单条数（0 = 没有）
 };
 
 // 组队页要读清单与卡牌元数据；ES module 不共享顶层作用域，显式挂到 window。
@@ -372,9 +373,55 @@ function addToInventory(cells, shotName, shotIndex) {
   return added;
 }
 
+/**
+ * 清单持久化。
+ *
+ * 识别原图是 blob URL（刷新即失效），所以不存原图；但「认出的是哪张卡」
+ * 数据量很小（几百字节/张），存下来刷新后还能直接去组队页算，不用重识别。
+ */
+const INV_STORE = 'bdh.inv.v1';
+
+function saveInventory() {
+  try {
+    const rows = [...S.inv.values()].map((x) => ({
+      cardId: x.cardId, trained: x.trained, score: x.score,
+      gap: x.gap, status: x.status, source: x.source,
+    }));
+    if (!rows.length) localStorage.removeItem(INV_STORE);
+    else localStorage.setItem(INV_STORE, JSON.stringify(rows));
+  } catch { /* 隐私模式 / 配额不足：不影响主流程 */ }
+}
+
+/** @returns {number} 恢复出来的条数 */
+function restoreInventory() {
+  let rows;
+  try { rows = JSON.parse(localStorage.getItem(INV_STORE) || '[]'); } catch { rows = []; }
+  if (!Array.isArray(rows) || !rows.length) return 0;
+  for (const x of rows) {
+    if (!x || x.cardId == null) continue;
+    S.inv.set(cardKey(x.cardId, x.trained), {
+      cardId: x.cardId,
+      trained: x.trained ? 1 : 0,
+      score: Number(x.score) || 0,
+      gap: Number(x.gap) || 0,
+      status: x.status === 'ambiguous' ? 'ambiguous' : 'matched',
+      source: x.source || '上次会话',
+      shot: -1, cell: -1,        // 原图没了，这一行点不进结果表
+    });
+  }
+  S.restored = S.inv.size;
+  return S.inv.size;
+}
+
 function buildInventoryFromShots() {
+  // 刷新后没有识别结果（原图是 blob，不持久化）：保留恢复出来的清单，
+  // 否则 renderAll 一跑就把它清空了。
+  if (!S.shots.length && S.restored) { renderInventory(); return; }
+  // 有了新的识别结果就以新结果为准 —— 旧清单里被手动移除的卡不该"复活"
+  S.restored = 0;
   S.inv.clear();
   S.shots.forEach((s, si) => addToInventory(s.cells, s.name, si));
+  saveInventory();
   renderInventory();
 }
 
@@ -667,7 +714,11 @@ function renderInventory() {
   $('btnConfirmAll').disabled = nPending === 0;
   $('btnRemovePending').disabled = nPending === 0;
   $('btnClearInv').disabled = S.inv.size === 0;
-  $('invHint').textContent = has ? '点行可跳到结果表对应格' : '';
+  $('invHint').textContent = has
+    ? (S.restored
+      ? `已恢复上次的清单（${S.restored} 张）· 重新识别会以新结果为准`
+      : '点行可跳到结果表对应格')
+    : '';
 
   const shown = list.length;
   $('invCount').textContent = has
@@ -709,6 +760,7 @@ function renderInventory() {
     el.onclick = (ev) => {
       ev.stopPropagation();
       S.inv.delete(el.dataset.del);
+      saveInventory();
       renderInventory();
     };
   });
@@ -716,6 +768,10 @@ function renderInventory() {
     tr.onclick = () => {
       const [si, ci] = tr.dataset.jump.split(':').map(Number);
       if (Number.isNaN(si) || Number.isNaN(ci)) return;
+      if (si < 0 || ci < 0) {
+        log('这张卡来自上次会话，对应的截图原图没有保留', 'warn');
+        return;
+      }
       S.selected = { shot: si, cell: ci };
       if (si !== S.activeShot) S.activeShot = si;
       renderPreview(); renderResults();
@@ -1398,7 +1454,6 @@ function showTab(name) {
 function updateBadges() {
   const nCells = S.shots.reduce((s, x) => s + x.cells.length, 0);
   const nInv = S.inv.size;
-  const nPending = [...S.inv.values()].filter((x) => x.status === 'ambiguous').length;
 
   const set = (id, n, muted = false) => {
     const el = $(id);
@@ -1411,8 +1466,23 @@ function updateBadges() {
   set('badgeImport', S.files.length);
   set('badgeResult', nCells);
   set('badgeInventory', nInv);
-  // 待确认的数挂在同步页 —— 那是最需要处理的数量
-  set('badgeSync', nPending, true);
+  // 「待确认」不再挂到「同步」上 —— 那个页讲的是往 Bestdori 写，
+  // 挂一个待确认数量会让人以为"有 2 张卡等着同步"。数量在清单页的统计里。
+  updateSyncHint();
+}
+
+/** 同步页（网页版）的导出按钮状态：清单空的时候点了也没用 */
+function updateSyncHint() {
+  const btn = $('syncExport');
+  if (!btn) return;
+  const n = S.inv.size;
+  btn.disabled = n === 0;
+  const hint = $('syncExportHint');
+  if (hint) {
+    hint.textContent = n
+      ? `当前清单 ${n} 张卡，导出的档案可以直接在官网粘贴。`
+      : '清单还是空的 —— 先到「识别」页选几张截图，或在「组队」页导入完整档案。';
+  }
 }
 
 // ---- 运行日志抽屉 ------------------------------------------------------
@@ -1453,11 +1523,15 @@ function setSyncState(text, kind = '') {
 
 async function initSync() {
   if (!IS_NATIVE) {
-    // 网页版：把同步表单收起来，换成一段解释 —— 摆一个用不了的表单更糟
+    // 网页版：不摆用不了的表单，也不给死路 —— 直接把「导出 → 官网粘贴」做成按钮
     $('syncCard').hidden = true;
     $('syncUnavailable').hidden = false;
-    log('浏览器环境：Bestdori 接口有 CORS 限制（实测连公开接口都被拦），' +
-        '同步功能只在安卓 App 里可用。网页版请用「清单」页导出。');
+    $('syncExport').onclick = () => exportProfileForImport();
+    $('syncOpenBd').onclick = () => {
+      window.open('https://bestdori.com/profile/manager', '_blank', 'noopener');
+    };
+    updateSyncHint();
+    log('浏览器环境：Bestdori 接口没有 CORS 头，改走「导出档案 → 官网粘贴导入」。');
     return;
   }
   $('syncCard').hidden = false;
@@ -1681,8 +1755,20 @@ function bind() {
   // 抽屉开着时按 Esc 关掉（桌面习惯）
   document.addEventListener('keydown', (e) => {
     if (e.key !== 'Escape') return;
+    // 选歌弹窗是最上层的，先关它 —— 以前它不响应 Esc，只能去点左下角那个「关闭」
+    if (!$('songLb').hidden) { $('songLbClose').click(); return; }
     if (!$('lightbox').hidden) { closeLightbox(); return; }
     if (!$('logsheet').hidden) openLog(false);
+  });
+
+  // 点选歌弹窗的空白处（面板外）也关掉
+  $('songLb').onclick = (e) => { if (e.target.id === 'songLb') $('songLbClose').click(); };
+
+  // 识别结果只在内存里，刷新/关页就没了 —— 有结果时拦一下
+  window.addEventListener('beforeunload', (e) => {
+    if (!S.shots.length) return;
+    e.preventDefault();
+    e.returnValue = '';
   });
 
   const dz = $('dropzone');
@@ -1690,6 +1776,10 @@ function bind() {
   const di = $('dirInput');
 
   dz.onclick = () => fi.click();
+  // 键盘也要能用：拖拽区以前是个不可聚焦的 div，Tab 到不了、回车也没反应
+  dz.onkeydown = (e) => {
+    if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); fi.click(); }
+  };
   fi.onchange = () => addFiles([...fi.files]);
   di.onchange = () => addFiles([...di.files]);
 
@@ -1717,12 +1807,28 @@ function bind() {
   });
 
   $('btnClear').onclick = () => {
+    const nCells = S.shots.reduce((s, x) => s + x.cells.length, 0);
+    const nCard = S.inv.size;
+    // 以前这里什么都不问，一键把清单也清掉 —— 而清单页的「清空清单」反而有确认。
+    // 同一个后果，两套待遇，明显不对。
+    if (S.shots.length || nCard) {
+      const ok = confirm(
+        `确定清空吗？\n\n` +
+        `  已选截图 ${S.files.length} 张\n` +
+        `  识别结果 ${nCells} 格\n` +
+        `  清单 ${nCard} 张卡\n\n` +
+        `网页版的清单由识别结果生成，所以会一并清掉，无法撤销。`);
+      if (!ok) return;
+    }
     S.files = []; S.shots = []; S.inv.clear(); S.selected = null;
+    S.restored = 0;
+    saveInventory();               // 持久化的那份一起清，否则刷新又冒出来
     $('fileInput').value = ''; $('dirInput').value = '';
     $('btnRun').disabled = true; $('btnClear').disabled = true;
     $('resultCount').textContent = '';
     renderAll();
-    log('已清空');
+    setStatus('已清空', '');
+    log(`已清空（${nCells} 格 / ${nCard} 张卡）`);
   };
 
   // 清单：搜索 / 筛选 / 批量
@@ -1731,6 +1837,7 @@ function bind() {
   $('btnConfirmAll').onclick = () => {
     let n = 0;
     for (const x of S.inv.values()) if (x.status === 'ambiguous') { x.status = 'matched'; n++; }
+    saveInventory();
     renderInventory();
     log(`已确认 ${n} 张待确认卡牌`, 'ok');
   };
@@ -1746,6 +1853,7 @@ function bind() {
     // 这里要连识别结果一起清，语义才对得上。
     S.shots = [];
     S.inv.clear();
+    S.restored = 0;
     S.selected = null;
     S.activeShot = 0;
     renderAll();
@@ -1755,6 +1863,7 @@ function bind() {
   $('btnRemovePending').onclick = () => {
     let n = 0;
     for (const [k, x] of [...S.inv]) if (x.status === 'ambiguous') { S.inv.delete(k); n++; }
+    saveInventory();
     renderInventory();
     log(`已移除 ${n} 张待确认卡牌`, 'ok');
   };
@@ -1811,6 +1920,12 @@ window.__bdh = {
   showTab('import');
   try {
     await loadData();
+    // 上次的清单（只有卡号，没有原图）：刷新后还能接着去组队页算
+    const nRestored = restoreInventory();
+    if (nRestored) {
+      renderAll();
+      log(`已恢复上次的清单：${nRestored} 张（识别原图不保留）`, 'ok');
+    }
     setStatus('就绪', 'ready');
     log('准备就绪，拖入截图开始识别', 'ok');
     await initSync();

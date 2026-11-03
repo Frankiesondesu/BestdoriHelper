@@ -549,8 +549,10 @@ td.thumb img { width: 42px; height: 42px; border-radius: 6px; object-fit: cover;
 
 /* 对照视图：左 = 截图里那一格，右 = 匹配到的 Bestdori 卡图 */
 .pair { display: flex; gap: 5px; align-items: center; flex: none; }
-/* 对照列要放得下两张 76px 的图（+ 间距 + 边框），否则表格会把它压扁 */
-td.thumb, th:first-child { min-width: 168px; }
+/* 对照列要放得下两张 76px 的图（+ 间距 + 边框），否则表格会把它压扁。
+   **只作用于结果表**：清单页的缩略图只有 42px，这条以前是全局的，
+   把清单表也撑到 168px —— 390 宽手机上表格变成 453px，「移除」被推出屏幕。 */
+#resultBody td.thumb, #resultBody th:first-child { min-width: 168px; }
 /* 必须写成 td.thumb .pair img：上面 td.thumb img 那条（清单页卡图列，42px）
    特异性是 0,1,2，比 .pair img 的 0,1,1 高 —— 直接写 .pair img 会被它压住。
    （这个坑踩过一次：实测 computed 一直是 42px。）*/
@@ -669,7 +671,8 @@ button.pill.fix:hover { border-color: var(--accent); color: var(--accent); backg
   font-size: 12.5px;
   line-height: 1.65;
 }
-.notice strong { display: block; margin-bottom: 6px; color: var(--warn); font-size: 13.5px; }
+/* 只作用于标题那一句；段落里的 <strong> 是行内强调，别整成独立一行 */
+.notice > strong { display: block; margin-bottom: 6px; color: var(--warn); font-size: 13.5px; }
 .notice p { margin: 0 0 6px; }
 .notice p:last-child { margin-bottom: 0; }
 
@@ -883,3 +886,91 @@ a { color: var(--info); }
   object-fit: cover; background: var(--panel-2);
   border: 1px solid var(--border-2);
 }
+
+/* ===== 选歌弹窗 =====
+   以前直接把 .lightbox（全屏）当弹窗用，头部控件被全局 `select,input{width:100%}`
+   撑成四行、217px 高，搜索框压在标题上、关闭按钮掉到左下角。
+   现在套一层定宽面板，控件宽度全部在这里显式收回。 */
+#songLb { align-items: center; justify-content: center; padding: 16px; }
+.song-lb-panel {
+  display: flex; flex-direction: column;
+  width: min(760px, 100%);
+  max-height: min(78vh, 720px);
+  background: var(--panel);
+  border: 1px solid var(--border-2);
+  border-radius: 16px;
+  overflow: hidden;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.55);
+}
+#songLb .lb-head {
+  flex-wrap: nowrap; gap: 8px;
+  padding: 10px 12px;
+  background: var(--panel);
+}
+#songLb .lb-head > * { width: auto; min-width: 0; }
+#songLb .song-lb-title {
+  flex: none; font-weight: 700; color: var(--text); white-space: nowrap;
+}
+#songLb #songSearch { flex: 1 1 auto; }
+#songLb #songBand { flex: none; width: 124px; }
+#songLb #songDiff { flex: none; width: 112px; }
+#songLb #songLbClose { flex: none; margin-left: auto; }
+#songLb .lb-body { overflow: auto; padding: 10px 12px calc(var(--sab) + 12px); }
+#songList { display: flex; flex-direction: column; gap: 6px; }
+#songMore { text-align: center; margin-top: 10px; }
+
+@media (max-width: 560px) {
+  /* 手机上仍然全屏 —— 小屏里弹窗比面板好用，但头部压成两行 */
+  #songLb { padding: 0; }
+  .song-lb-panel {
+    width: 100%; height: 100%; max-height: 100%;
+    border: 0; border-radius: 0;
+  }
+  #songLb .lb-head {
+    flex-wrap: wrap; row-gap: 6px;
+    padding: calc(var(--sat) + 10px) 12px 10px;
+  }
+  #songLb #songSearch { flex: 1 1 100%; order: -1; }
+  #songLb #songBand, #songLb #songDiff { flex: 1 1 0; width: auto; }
+  #songLb #songLbClose { margin-left: 0; }
+}
+
+/* 网页版同步页的三步说明 */
+.notice .steps { margin: 10px 0 12px; display: grid; gap: 6px; }
+.notice .steps > div {
+  display: flex; gap: 8px; align-items: baseline;
+  color: var(--text-dim); font-size: 12.5px; line-height: 1.6;
+}
+.notice .steps i {
+  flex: none; width: 18px; height: 18px; border-radius: 50%;
+  background: rgba(251, 191, 36, 0.18); color: var(--warn);
+  font-style: normal; font-size: 11px; font-weight: 700;
+  display: inline-flex; align-items: center; justify-content: center;
+  transform: translateY(2px);
+}
+.notice .steps b { color: var(--text); }
+
+/* ===== 手机端的两个表格 =====
+   390 宽下结果表原来要 415px、清单表要 453px，右侧内容（第 3 个候选、
+   「位置」列、「移除」按钮）被裁在屏幕外，只能横向滑才能点到。 */
+@media (max-width: 899px) {
+  #resultBody td.thumb .pair img,
+  #resultBody td.thumb .pair .noimg { width: 58px; height: 58px; }
+  #resultBody td.thumb, #resultBody th:first-child { min-width: 132px; }
+  #resultBody td, #resultBody th { padding-left: 5px; padding-right: 5px; }
+  #resultBody .cand { padding: 3px 6px 3px 3px; }
+  #invBody td, #invBody th { padding-left: 5px; padding-right: 5px; }
+  /* 「移除」在窄列里会被折成两行（移 / 除），看着像坏了 */
+  #invBody td:last-child button { padding: 5px 7px; font-size: 12px; white-space: nowrap; }
+}
+
+/* 活动名补全行：只在窄屏显示（宽屏 select 本来就放得下） */
+.ev-name { display: none; margin-top: 4px; color: var(--text-dim); line-height: 1.4; }
+@media (max-width: 899px) { .ev-name { display: block; } }
+
+/* 拖拽区可聚焦（键盘用户 Tab 过来时要看得见） */
+#dropzone:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* 区域道具三列：杂志没有下拉，它的数字框会跟另外两个的 select 挤在同一行。
+   用 margin-top:auto 把三个数字框都压到列底，视觉上才对得齐。 */
+#view-team .field-row .field > input[type="number"] { margin-top: auto; }

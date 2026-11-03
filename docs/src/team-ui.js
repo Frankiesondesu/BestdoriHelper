@@ -84,6 +84,8 @@ function updateEventHint() {
   if (e.ab?.pointPercent) parts.push(`双重 +${e.ab.pointPercent}% 点`);
   if (e.ab?.parameterPercent) parts.push(`双重 +${e.ab.parameterPercent}% 综合力`);
   hint.textContent = parts.join(' · ');
+  // 窄屏的 select 只显示得下「进行中 ·」，活动全名放在它下面那行
+  if ($('tmEventName')) $('tmEventName').textContent = e.n || '';
 }
 
 const BAND_NAME = {
@@ -697,6 +699,11 @@ export async function runTeamCalc() {
     render(results, {
       diff, level: ctx.songLevel, notes: parsed.notes.length,
       skillLv: ctx.level, event: ev,
+    });
+    // 结果块在设置区下面，手机上整块落在首屏之外 —— 算完直接把用户带过去，
+    // 否则点完按钮只看到页面没动，很容易以为没生效。
+    requestAnimationFrame(() => {
+      $('tmBody').scrollIntoView({ block: 'start', behavior: 'smooth' });
     });
   } catch (e) {
     $('tmBody').innerHTML = `<div class="empty">${e.message}</div>`;
