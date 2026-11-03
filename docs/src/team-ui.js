@@ -916,7 +916,10 @@ export async function runTeamCalc() {
         </div>
         <div class="footnote" id="tmProgTxt">候选 ${p.length} 张，正在枚举组合…</div>
       </div>`;
-    // 实际道具等级：来自「道具」页（bdh.items.v1）；没有就用仓库自带的 my-items.json
+    // 道具等级，按可信度取第一个有值的：
+    //   ① 「道具」页 OCR / 导入的结果（用户最近确认过的）
+    //   ② 导入的 Bestdori 档案里带的 items（等级是官方数据）
+    //   ③ 仓库自带的 my-items.json（之前识别出来的那份）
     let itemLevels = null;
     let itemDetail = null;
     try {
@@ -924,6 +927,16 @@ export async function runTeamCalc() {
       if (raw) {
         const it = JSON.parse(raw);
         if (it && Object.keys(it).length) itemLevels = it;
+      }
+      if (!itemLevels && PROFILE?.items) {
+        const lv = {};
+        for (const [slot, m] of Object.entries(PROFILE.items)) {
+          if (slot === 'potentials' || !m) continue;
+          const vals = (m instanceof Map ? [...m.values()] : Object.values(m))
+            .map(Number).filter((x) => !Number.isNaN(x));
+          if (vals.length) lv[slot] = Math.max(...vals);
+        }
+        if (Object.keys(lv).length) itemLevels = lv;
       }
       if (!itemLevels) {
         const d = await loadDefaultItems();
