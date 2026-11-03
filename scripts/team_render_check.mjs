@@ -22,7 +22,11 @@ const els = new Map();
 const mkEl = () => ({
   innerHTML: '', textContent: '', value: '', hidden: false,
   dataset: {}, style: {}, classList: { add() {}, remove() {}, toggle() {} },
-  appendChild() {}, focus() {}, addEventListener() {},
+  appendChild() {}, insertBefore() {}, focus() {}, addEventListener() {},
+  // render() 里会遍历 [data-team] 绑定详情弹层、给复制按钮挂 click。
+  // 没有真实 DOM 解析，返回空集合即可（测的是表格 HTML 文本）。
+  querySelectorAll() { return []; },
+  querySelector() { return null; },
 });
 globalThis.document = {
   getElementById: (id) => {

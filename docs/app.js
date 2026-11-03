@@ -12,7 +12,7 @@
  * 指纹库（fingerprints.bin）和缩略图（thumbs/*.webp）都是构建时生成的静态资源。
  */
 
-import { log, clearLogUnread } from './src/log.js';
+import { log, clearLog, copyLog, clearLogUnread } from './src/log.js';
 import { computeFeatures, cropRgba } from './src/features.js';
 import { FingerprintIndex } from './src/index.js';
 import { detectBoxes, refineBox } from './src/detect.js';
@@ -1746,6 +1746,14 @@ function bind() {
   // 运行日志抽屉
   $('btnLog').onclick = () => openLog(true);
   $('btnLogClose').onclick = () => openLog(false);
+  $('btnLogCopy').onclick = async () => {
+    const ok = await copyLog();
+    log(ok ? '日志已复制到剪贴板' : '复制失败：浏览器不允许访问剪贴板', ok ? 'ok' : 'err');
+  };
+  $('btnLogClear').onclick = () => {
+    clearLog();
+    log('日志已清空');
+  };
   $('logScrim').onclick = () => openLog(false);
   // 抽屉开着时按 Esc 关掉（桌面习惯）
   document.addEventListener('keydown', (e) => {

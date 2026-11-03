@@ -753,6 +753,22 @@ a { color: var(--info); }
 .log .t { color: var(--text-faint); }
 .log .err { color: var(--err); }
 .log .ok { color: var(--ok); }
+.log .warn { color: var(--warn); }
+/* 进度行：同一个位置原地刷新，不占历史 —— 收尾后去掉 prog 类即变成普通行 */
+.log .prog { opacity: 0.85; }
+.log .prog .pv::after { content: "…"; }
+.log-actions { display: flex; align-items: center; gap: 2px; }
+.log-actions .icon-btn { width: 34px; height: 34px; }
+/* 参数改过但没重算 —— 贴在结果卡片顶部，避免照着旧表去打歌 */
+.tm-stale {
+  margin: 0 0 10px;
+  padding: 7px 10px;
+  border-radius: 8px;
+  background: rgba(224, 161, 58, 0.13);
+  color: var(--warn, #e0a13a);
+  font-size: 12px;
+  line-height: 1.45;
+}
 
 /* =========================================================
    宽屏：底部导航栏转侧边导航栏

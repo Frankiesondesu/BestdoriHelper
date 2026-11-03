@@ -11,7 +11,7 @@ import { parseChart, bestTeams, eventBonusFor, pickAreaItems } from './team.js';
 import { parseProfile } from './profile.js';
 import { recognizeImage, parseOcrLines } from './ocr.js';
 import { fetchChart } from './chart-fetch.js';
-import { log } from './log.js';
+import { log, logProgress, logProgressDone, copyText } from './log.js';
 
 let TEAM = null;
 let SONGS = null;
@@ -23,6 +23,8 @@ let lastResults = null;
 let lastMeta = null;
 /** 排序口径：'points' 追活动点数 / 'score' 追单局分数 */
 let sortMode = 'points';
+/** 计算进行中标记 —— 连点「计算」会并发跑多次，进度条和结果都会互相覆盖 */
+let running = false;
 
 const ATTR_CN = { powerful: '强力', happy: '快乐', pure: '纯洁', cool: '酷炫' };
 const ATTR_COLOR = { powerful: '#ff4d4d', happy: '#ffb84d', pure: '#4dd98a', cool: '#4d9bff' };
@@ -328,6 +330,9 @@ export function render(results, meta) {
       <p class="footnote">分数模型：综合力 × Lv加成 × 300% × 判定/COMBO/技能。
         这里是<b>全 PERFECT + 全程不断连</b>的理论值，实战一定更低 ——
         它用于横向比较队伍强弱，不是「这一局能打多少分」。</p>
+      <div class="btn-row">
+        <button class="small" id="tmCopyTeam">复制最优队伍</button>
+      </div>
       ${tradeoff}
       ${withBonus ? `<p class="footnote">活动加成 = 属性 + 角色 + 一致 + 当期卡 + 星光，
         逐卡相加；表格里是该队 5 张卡的<b>合计</b>，游戏结算界面显示的就是这个数，
@@ -341,6 +346,24 @@ export function render(results, meta) {
   $('tmBody').querySelectorAll('[data-team]').forEach((tr) => {
     tr.onclick = () => openTeamDetail(Number(tr.dataset.team));
   });
+
+  // 复制最优队伍：贴到群里/攻略里比截图省事，卡号还能直接搜
+  const copyBtn = $('tmCopyTeam');
+  if (copyBtn) {
+    copyBtn.onclick = async (e) => {
+      e.stopPropagation();
+      const r = results[0];
+      if (!r) return;
+      const head = `${ev?.n || '不计活动'} · ${meta.diff} Lv${meta.level} · `
+        + `点数 ${r.points == null ? '—' : r.points} · 加成 ${Math.round(r.bonusSum ?? 0)}%`;
+      const body = r.team.map((c, i) => {
+        const m = cardMeta(c.id);
+        return `${i + 1}. ${m.chName}「${m.name}」${m.r}★${m.a} #${c.id}`;
+      });
+      const ok = await copyText([head, ...body].join('\n'));
+      log(ok ? '最优队伍已复制（含卡号）' : '复制失败：浏览器不允许访问剪贴板', ok ? 'ok' : 'err');
+    };
+  }
 }
 
 /** 卡面显示信息：名字/角色/乐队/稀有度/属性 */
@@ -873,15 +896,24 @@ export async function initTeamTab() {
 
 export async function runTeamCalc() {
   await ensureData();
+  if (running) {
+    log('正在计算中，这次点击已忽略（连点不会更快）', 'warn');
+    return;
+  }
   const p = pool();
   if (p.length < 5) {
     $('tmBody').innerHTML = '<div class="empty">清单里的卡不足 5 张，先在「结果」页识别截图。</div>';
+    log('卡池不足 5 张，无法编队', 'err');
     return;
   }
   const diff = $('tmDiff').value;
   const sid = pickedSongId;
-  if (!sid) return;
+  if (!sid) { log('还没选歌曲 —— 点「选歌」挑一首再算', 'warn'); return; }
 
+  running = true;
+  const btn = $('tmRun');
+  const btnLabel = btn?.textContent;
+  if (btn) { btn.disabled = true; btn.textContent = '计算中…'; }
   $('tmBody').innerHTML = '<div class="empty">计算中…</div>';
   const t0 = performance.now();
   try {
@@ -961,36 +993,49 @@ export async function runTeamCalc() {
       log('道具：没有数据，按 0 加成算 —— 去「道具」页识别或导入', 'warn');
     }
 
-    let loggedStep = -1;   // 日志里每 25% 记一行，避免刷屏
+    let stats = {};
+    let compare = null;
+    let loggedStep = -1;   // 进度每 10% 刷一次（同一行覆盖，不占历史）
     let results = await bestTeams(p, parsed, ctx, {
       topN: 30,
       sortBy: sortMode,                // ← 按点数 / 按分数
       itemLevels,                      // ← 有实际等级就逐队自动选道具
       itemDetail,                      // ← 道具中文名（判断属性/杂志作用围）
       characters: TEAM.characters,
+      // 剪枝统计：让用户看到「算了多少、留下多少」，而不是只有一个百分比
+      onStats: (s) => { stats = { ...stats, ...s }; },
       onProgress: (f) => {
+        const pct = Math.round(f * 100);
         const bar = $('tmProg');
-        if (bar) bar.style.width = `${Math.round(f * 100)}%`;
+        if (bar) bar.style.width = `${pct}%`;
         const t = $('tmProgTxt');
-        if (t) t.textContent =
-          `枚举组合 ${Math.round(f * 100)}%（卡池 ${p.length} 张，三围前列 + 全部档期卡参与枚举）`;
-        const step = Math.floor(f * 4);
+        if (t) t.textContent = `枚举组合 ${pct}%（候选池 ${stats.poolSize ?? p.length} 张）`;
+        const step = Math.floor(f * 10);
         if (step > loggedStep) {
           loggedStep = step;
-          log(`枚举进度 ${Math.min(100, step * 25)}%（候选 ${p.length} 张）`);
+          logProgress(`枚举 ${Math.min(100, step * 10)}%`
+            + `（${(stats.combos ?? 0).toLocaleString()} 组合）`);
         }
       },
     });
+    logProgressDone(
+      `枚举完成：候选池 ${stats.poolSize ?? '?'} 张 · `
+      + `${(stats.combos ?? 0).toLocaleString()} 组合`
+      + (stats.skippedDup ? `（同角色去重 ${stats.skippedDup.toLocaleString()}）` : '')
+      + ` · 精确计算 ${(stats.shortlist ?? 0).toLocaleString()} 队`
+      + (stats.bestRank >= 0 ? ` · 最优解在粗排第 ${stats.bestRank} 位` : ''),
+    );
 
-    // 活动点数已经在 bestTeams 里算好；这里按当前口径再排一次并截断到 10 队
+    // bestTeams 已按口径排好序；这里只做截断前的兜底重排，并列规则与引擎一致
     results.sort((a, b) => (sortMode === 'score'
-      ? b.score - a.score
-      : (b.points ?? 0) - (a.points ?? 0)));
+      ? (b.score - a.score) || ((b.points ?? 0) - (a.points ?? 0))
+      : ((b.points ?? 0) - (a.points ?? 0)) || (b.score - a.score)));
     results = results.slice(0, 10);
 
-    // 再算一次「另一种口径」的最优队，用来说明取舍。
-    // 它常常不在当前排序的 Top30 里（比如加成 0 的队点数很低），所以必须单独算。
-    let compare = null;
+    // 另一口径的最优队必须**单独再跑一遍**。
+    // 粗排（roughKey）本身按当前口径排，换口径后进 600 队短名单的组合完全不同 ——
+    // 想在同一次枚举里顺带拿到「分数最高」只会拿到「本口径短名单里分数最高的」，
+    // 实测 213 万 vs 真实 233 万，差 20 万。宁可多花半秒，也不给错的对照。
     try {
       const other = await bestTeams(p, parsed, ctx, {
         topN: 1, itemLevels, itemDetail, characters: TEAM.characters,
@@ -1025,12 +1070,34 @@ export async function runTeamCalc() {
     });
   } catch (e) {
     $('tmBody').innerHTML = `<div class="empty">${e.message}</div>`;
+    logProgressDone(`计算失败：${e.message}`, 'err');
+    log(`计算失败：${e.message}`, 'err');
+  } finally {
+    running = false;
+    if (btn) { btn.disabled = false; btn.textContent = btnLabel || '计算最优队伍'; }
   }
+}
+
+/** 参数改动提示：结果表还停留在上一次的口径 */
+function markParamsDirty() {
+  if (!lastResults?.length) return;
+  const card = $('tmBody')?.querySelector('.card');
+  if (!card || card.querySelector('.tm-stale')) return;
+  const d = document.createElement('div');
+  d.className = 'tm-stale';
+  d.textContent = '参数已修改 —— 点「计算最优队伍」按新参数重算（下表仍是上一次的结果）';
+  card.insertBefore(d, card.firstChild);
 }
 
 export function bindTeamTab() {
   const btn = $('tmRun');
   if (btn) btn.onclick = runTeamCalc;
+  // 改了参数但没重算时，结果表还是上一次的 —— 明确提示，避免照着旧表去打歌
+  ['tmDiff', 'tmEvent', 'tmSkillLv', 'tmRank', 'tmBand', 'tmBandSel',
+    'tmAttr', 'tmAttrSel', 'tmMag'].forEach((id) => {
+    const el = $(id);
+    if (el) el.addEventListener('change', markParamsDirty);
+  });
   if ($('tmExport')) $('tmExport').onclick = exportSettings;
   if ($('tmImport')) $('tmImport').onclick = () => $('tmImportFile').click();
   if ($('tmImportFile')) {

@@ -511,9 +511,17 @@
 <div class="logsheet" id="logsheet" hidden>
   <header>
     <strong>运行日志</strong>
-    <button class="icon-btn" id="btnLogClose" aria-label="关闭">
-      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
-    </button>
+    <div class="log-actions">
+      <button class="icon-btn" id="btnLogCopy" title="复制全部日志" aria-label="复制全部日志">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M15 5H6a1 1 0 0 0-1 1v9"/></svg>
+      </button>
+      <button class="icon-btn" id="btnLogClear" title="清空日志" aria-label="清空日志">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M9 7V5h6v2M6 7l1 13h10l1-13"/></svg>
+      </button>
+      <button class="icon-btn" id="btnLogClose" aria-label="关闭">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
+      </button>
+    </div>
   </header>
   <div class="log" id="log"></div>
 </div>

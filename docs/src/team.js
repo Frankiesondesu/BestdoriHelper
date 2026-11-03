@@ -1570,7 +1570,7 @@ export async function bestTeams(pool, parsed, ctx, opt = {}) {
   const shortlist = cands.slice(0, PRECISE_LIMIT);
   cands.length = 0;   // 释放，几万个对象占内存
   // 调试用：有多少组合因为「同角色重复」被排除（正常应占少数）
-  if (opt.onStats) opt.onStats({ combos: total, skippedDup, shortlist: shortlist.length });
+  if (opt.onStats) opt.onStats({ poolSize: n, combos: total, skippedDup, shortlist: shortlist.length });
 
   // 真正最优解在粗排序列里排第几。把 `preciseLimit` 开到全量（比如 1e9）跑一次，
   // 这个数就是「截断余量」：排名远小于 600 说明启发式很稳，接近 600 就该警惕。
@@ -1655,12 +1655,20 @@ export async function bestTeams(pool, parsed, ctx, opt = {}) {
       // **直接比点数**。点数公式已经把分数和加成（或综合力里的加成）都算进去了，
       // 不需要也不应该再手写「加成优先」的规则 —— 那样会错过「加成略低但分数高
       // 很多」的最优解（混合编组场景：凑不齐 5 张档期卡时，用部分档期卡提加成 +
-      // 最强卡提分数）。点数相同再加成高者在前（同分时更稳）。
+      // 最强卡提分数）。
       const d = (b.points ?? 0) - (a.points ?? 0);
       if (d !== 0) return d;
-      return (b.bonusPct ?? 0) - (a.bonusPct ?? 0);
+      // 点数并列时按**分数**排，不再按加成：
+      // 点数里已经含加成，并列说明加成差距正好被分数抵消；这时分数高的队更稳
+      // （同样的点数只需要更低的发挥）。旧版按 bonusPct 排，两队加成又常常相同，
+      // 最终顺序取决于枚举次序 —— 表现为「同样的输入，第一名换人」。
+      const ds = b.score - a.score;
+      if (ds !== 0) return ds;
+      return b.power - a.power;
     }
-    return b.score - a.score;
+    const ds = b.score - a.score;
+    if (ds !== 0) return ds;
+    return (b.points ?? 0) - (a.points ?? 0);
   });
   return results.slice(0, topN);
 }
