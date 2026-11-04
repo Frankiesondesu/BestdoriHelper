@@ -63,6 +63,21 @@
 /** 判定倍率（新版本实测值） */
 export const JUDGE = { perfect: 1.10, great: 0.80, good: 0.50, bad: 0 };
 
+/**
+ * 按「PERFECT 率」折算判定倍率。
+ *
+ * 游戏里只有 PERFECT / GREAT 两档会实际出现在大多数谱面里（GOOD 以下直接断连），
+ * 所以用两档加权近似：`1.10 × 准度 + 0.80 × (1 - 准度)`。
+ * 准度 100% 时就是 1.10，与不传 `accuracy` 完全等价。
+ *
+ * @param {number|null|undefined} acc 0~1；缺省视为全 PERFECT
+ */
+export function accuracyJudge(acc) {
+  if (acc == null || Number.isNaN(Number(acc))) return JUDGE.perfect;
+  const p = Math.min(1, Math.max(0, Number(acc)));
+  return JUDGE.perfect * p + JUDGE.great * (1 - p);
+}
+
 /** 连击数下限 -> 加成。分段累加，不是只取最高段。 */
 export const COMBO_TABLE = [
   [0, 0.00], [21, 0.01], [51, 0.02], [101, 0.03], [151, 0.04],
@@ -900,7 +915,12 @@ function triggerIndices(notes, slots) {
  *
  * @param {object[]} team   5 张卡，`team[0]` 为队长（C 位）
  * @param {object}   parsed `parseChart` 的结果
- * @param {object}   ctx    {skills, level, songLevel, charRank, area, event, judge, optimizeOrder}
+ * @param {object}   ctx    {skills, level, songLevel, charRank, area, event, judge,
+ *                           accuracy, comboRate, optimizeOrder}
+ *   - `accuracy`  0~1，PERFECT 率（缺省 1 = 全 PERFECT）
+ *   - `comboRate` 0~1，连击保持率（缺省 1 = 全程不断连）。实际做法是把第 i 颗
+ *     NOTE 的连击数按比例折算（`round((i+1) × rate)`），等价于"平均每段连击
+ *     长度打这个折扣"，100% 时与逐音符原序列完全一致。
  * @returns {{score:number, avgScore:number, maxScore:number, power:number,
  *            bestOrder:number[]}}
  */
@@ -919,7 +939,12 @@ export function scoreTeam(team, parsed, ctx) {
   const songLevel = ctx.songLevel ?? 26;
   const levelBonus = 1 + (songLevel - 5) * 0.01;
   const basePerNote = (power * levelBonus * 3 * SCORE_SCALE) / n;
-  const judge = ctx.judge ?? JUDGE.perfect;
+  // 判定：优先用显式 judge（对拍时锁定用），否则按用户填的准度折算
+  const judge = ctx.judge ?? accuracyJudge(ctx.accuracy);
+  // 连击保持率：100% 时走原来的逐音符序列（combo = i+1），一位不差
+  const comboRate = ctx.comboRate == null
+    ? 1 : Math.min(1, Math.max(0, Number(ctx.comboRate) || 0));
+  const comboAt = (i) => (comboRate >= 1 ? i + 1 : Math.max(1, Math.round((i + 1) * comboRate)));
 
   // ① 每 NOTE 的整数基础分（含 combo 与 fever，不含技能）
   //    ⚠️ `comboBonus` 返回的是**加成值**（0.00~0.11），要自己加 1
@@ -934,10 +959,10 @@ export function scoreTeam(team, parsed, ctx) {
   {
     let start = 0;
     let v = Math.floor(basePerNote * 1 * (notes[0].fever ? 2 : 1) * judge);
-    let rate = 1 + comboBonus(1);
+    let rate = 1 + comboBonus(comboAt(0));
     let fever = notes[0].fever ? 2 : 1;
     for (let i = 1; i < n; i++) {
-      const r = 1 + comboBonus(i + 1);
+      const r = 1 + comboBonus(comboAt(i));
       const f = notes[i].fever ? 2 : 1;
       if (r === rate && f === fever) continue;
       groups.push({ start, end: i, v });

@@ -31,6 +31,13 @@ const ATTR_COLOR = { powerful: '#ff4d4d', happy: '#ffb84d', pure: '#4dd98a', coo
 
 const $ = (id) => document.getElementById(id);
 
+/** 读百分比输入框（0~100），缺省/非法值按 100% 算 */
+function readPct(id) {
+  const v = Number($(id)?.value);
+  if (!Number.isFinite(v)) return 1;
+  return Math.min(1, Math.max(0, v / 100));
+}
+
 async function ensureData() {
   if (TEAM && SONGS) return;
   const [t, s, e] = await Promise.all([
@@ -328,7 +335,10 @@ export function render(results, meta) {
         </table>
       </div>
       <p class="footnote">分数模型：综合力 × Lv加成 × 300% × 判定/COMBO/技能。
-        这里是<b>全 PERFECT + 全程不断连</b>的理论值，实战一定更低 ——
+        ${(meta.accuracy ?? 1) >= 1 && (meta.comboRate ?? 1) >= 1
+          ? '这里是<b>全 PERFECT + 全程不断连</b>的理论值，实战一定更低'
+          : `这里按你填的<b>准度 ${Math.round((meta.accuracy ?? 1) * 1000) / 10}%</b>、`
+            + `<b>连击保持 ${Math.round((meta.comboRate ?? 1) * 1000) / 10}%</b> 折算`} ——
         它用于横向比较队伍强弱，不是「这一局能打多少分」。</p>
       <div class="btn-row">
         <button class="small" id="tmCopyTeam">复制最优队伍</button>
@@ -457,6 +467,8 @@ function readSettings() {
     attrSel: $('tmAttrSel').value,
     attrPct: $('tmAttr').value,
     magPct: $('tmMag').value,
+    accPct: $('tmAcc').value,
+    comboPct: $('tmCombo').value,
     sortMode,
   };
 }
@@ -469,6 +481,7 @@ function applySettings(cfg) {
   set('tmBandSel', cfg.bandSel); set('tmBand', cfg.bandPct);
   set('tmAttrSel', cfg.attrSel); set('tmAttr', cfg.attrPct);
   set('tmMag', cfg.magPct);
+  set('tmAcc', cfg.accPct); set('tmCombo', cfg.comboPct);
   if (cfg.sortMode === 'score' || cfg.sortMode === 'points') {
     sortMode = cfg.sortMode;
     document.querySelectorAll('#tmSort button').forEach((b) => {
@@ -938,9 +951,17 @@ export async function runTeamCalc() {
       songLevel: SONGS[sid]?.lv?.[diff] ?? 26,
       charRank: Number($('tmRank').value),
       potentials: PROFILE?.potentials || null,   // 档案里的角色潜力，按角色加成
+      accuracy: readPct('tmAcc'),                // PERFECT 率（100% = 全 PERFECT）
+      comboRate: readPct('tmCombo'),             // 连击保持率（100% = 不断连）
       area,
       event: ev,
     };
+    const accPct = Math.round((ctx.accuracy ?? 1) * 1000) / 10;
+    const comboPct = Math.round((ctx.comboRate ?? 1) * 1000) / 10;
+    if (accPct < 100 || comboPct < 100) {
+      log(`实战水平：准度 ${accPct}% · 连击保持 ${comboPct}%`
+        + `（理论满分是 100% / 100%）`);
+    }
 
     // 分片枚举：边算边刷进度，避免页面看起来卡死
     $('tmBody').innerHTML = `
@@ -1062,6 +1083,7 @@ export async function runTeamCalc() {
     render(results, {
       diff, level: ctx.songLevel, notes: parsed.notes.length,
       skillLv: ctx.level, event: ev, compare, sortMode,
+      accuracy: ctx.accuracy, comboRate: ctx.comboRate,
     });
     // 结果块在设置区下面，手机上整块落在首屏之外 —— 算完直接把用户带过去，
     // 否则点完按钮只看到页面没动，很容易以为没生效。
@@ -1094,7 +1116,7 @@ export function bindTeamTab() {
   if (btn) btn.onclick = runTeamCalc;
   // 改了参数但没重算时，结果表还是上一次的 —— 明确提示，避免照着旧表去打歌
   ['tmDiff', 'tmEvent', 'tmSkillLv', 'tmRank', 'tmBand', 'tmBandSel',
-    'tmAttr', 'tmAttrSel', 'tmMag'].forEach((id) => {
+    'tmAttr', 'tmAttrSel', 'tmMag', 'tmAcc', 'tmCombo'].forEach((id) => {
     const el = $(id);
     if (el) el.addEventListener('change', markParamsDirty);
   });
